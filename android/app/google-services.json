@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "271386830126",
+    "project_id": "intelligent-smart-shop",
+    "storage_bucket": "intelligent-smart-shop.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:271386830126:android:e462fe94abf6cf2e6506bf",
+        "android_client_info": {
+          "package_name": "com.company.ismart_shop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJv-XmDj0BKGrHNSmIksLlRi9KWSDVh10"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

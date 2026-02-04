@@ -1,0 +1,54 @@
+name: ismart_shop
+description: Intelligent Shop Assistant App
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+
+  # State Management
+  provider: ^6.0.5
+
+  # Firebase
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  cloud_firestore: ^5.3.0
+  firebase_storage: ^12.1.0
+
+  # Speech Recognition
+  speech_to_text: ^7.0.0
+
+  # Translation
+  flutter_translate: ^4.0.4
+
+  # Charts
+  fl_chart: ^0.63.0
+
+  # Date/Time
+  intl: ^0.18.1
+
+  # UI Helpers
+  google_fonts: ^6.1.0
+  flutter_svg: ^2.0.7
+
+  # Image Picking
+  image_picker: ^1.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/translations/
