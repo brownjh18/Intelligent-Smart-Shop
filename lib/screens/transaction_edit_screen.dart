@@ -165,7 +165,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        CupertinoPageRoute(builder: (_) => const HomeScreen()),
+        CupertinoPageRoute(
+            builder: (_) => const HomeScreen(initialTabIndex: 1)),
       );
     }
   }
@@ -198,7 +199,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          CupertinoPageRoute(builder: (_) => const HomeScreen()),
+          CupertinoPageRoute(
+              builder: (_) => const HomeScreen(initialTabIndex: 1)),
         );
       }
     }
@@ -656,7 +658,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   void _navigateToScreen(int index) {
     Navigator.pushReplacement(
       context,
-      CupertinoPageRoute(builder: (_) => const HomeScreen()),
+      CupertinoPageRoute(builder: (_) => HomeScreen(initialTabIndex: index)),
     );
   }
 

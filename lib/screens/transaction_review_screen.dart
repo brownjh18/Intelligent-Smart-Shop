@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/models/transaction.dart';
@@ -55,6 +56,14 @@ class _TransactionReviewScreenState extends State<TransactionReviewScreen> {
     final authProvider = context.read<AuthProvider>();
     final transactionProvider = context.read<TransactionProvider>();
 
+    // Debug: Log the parsed values
+    debugPrint('=== Transaction Review Screen - Saving ===');
+    debugPrint('Type: $_type');
+    debugPrint('Amount: ${widget.transactionIntent.amount}');
+    debugPrint('Item Name: ${widget.transactionIntent.itemName}');
+    debugPrint('Category: $_category');
+    debugPrint('Description: $_description');
+
     // Create a default item from the parsed data
     final item = TransactionItem.create(
       itemName: widget.transactionIntent.itemName,
@@ -62,6 +71,9 @@ class _TransactionReviewScreenState extends State<TransactionReviewScreen> {
       unit: QuantityUnit.pcs,
       pricePerUnit: widget.transactionIntent.amount,
     );
+
+    debugPrint(
+        'Created item - pricePerUnit: ${item.pricePerUnit}, amount: ${item.amount}');
 
     final transaction = Transaction.create(
       type: _type,
@@ -71,13 +83,15 @@ class _TransactionReviewScreenState extends State<TransactionReviewScreen> {
       category: _category.isNotEmpty ? _category : null,
     );
 
+    debugPrint('Created transaction - totalAmount: ${transaction.totalAmount}');
+
     // Save in background - navigate back immediately
     transactionProvider.addTransaction(transaction);
 
     // Navigate back to home immediately
     Navigator.pushAndRemoveUntil(
       context,
-      CupertinoPageRoute(builder: (_) => const HomeScreen()),
+      CupertinoPageRoute(builder: (_) => const HomeScreen(initialTabIndex: 1)),
       (route) => false,
     );
   }
@@ -189,7 +203,7 @@ class _TransactionReviewScreenState extends State<TransactionReviewScreen> {
   void _navigateToHome() {
     Navigator.pushAndRemoveUntil(
       context,
-      CupertinoPageRoute(builder: (_) => const HomeScreen()),
+      CupertinoPageRoute(builder: (_) => const HomeScreen(initialTabIndex: 1)),
       (route) => false,
     );
   }

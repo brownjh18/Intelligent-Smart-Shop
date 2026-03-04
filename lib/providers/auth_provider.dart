@@ -16,7 +16,10 @@ class AuthProvider with ChangeNotifier {
   UserModel? get userModel => _userModel;
   bool get isLoading => _isLoading;
   String get error => _error;
-  bool get isAuthenticated => _userModel != null || _demoMode;
+  bool get isAuthenticated =>
+      _userModel != null || _demoMode || _auth?.currentUser != null;
+
+  bool get isSignedIn => _auth?.currentUser != null || _demoMode;
 
   AuthProvider() {
     debugPrint('AuthProvider constructor called');
@@ -44,7 +47,14 @@ class AuthProvider with ChangeNotifier {
       _auth = FirebaseAuth.instance;
       _firestore = FirebaseFirestore.instance;
 
-      // Set up auth state listener
+      // Check if user is already signed in (persists across app restarts)
+      final currentUser = _auth!.currentUser;
+      if (currentUser != null) {
+        debugPrint('User already signed in: ${currentUser.uid}');
+        _loadUserData(currentUser.uid);
+      }
+
+      // Set up auth state listener for future changes
       _auth!.authStateChanges().listen((User? user) {
         debugPrint('Auth state changed: ${user?.uid ?? 'null'}');
         if (user != null && !_demoMode) {
@@ -75,8 +85,7 @@ class AuthProvider with ChangeNotifier {
       _error = '';
       notifyListeners();
 
-      await Future.delayed(const Duration(milliseconds: 500));
-
+      // No delay for faster sign-in
       _userModel = UserModel(
         id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
         email: email,
@@ -139,8 +148,7 @@ class AuthProvider with ChangeNotifier {
       _error = '';
       notifyListeners();
 
-      await Future.delayed(const Duration(milliseconds: 500));
-
+      // No delay for faster account creation
       _userModel = UserModel(
         id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
         email: email,

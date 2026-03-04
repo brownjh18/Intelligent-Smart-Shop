@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/language_provider.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
+import 'package:ismart_shop/services/firestore_setup.dart';
 import 'profile_edit_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -127,6 +128,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Get help and support',
                     CupertinoIcons.chevron_right,
                     () {},
+                  ),
+                  _buildDivider(),
+                  _buildSettingsTileWithAction(
+                    CupertinoIcons.cloud_fill,
+                    'Initialize Database',
+                    'Set up Firestore collections',
+                    CupertinoIcons.chevron_right,
+                    () {
+                      _initializeFirestore();
+                    },
                   ),
                 ],
               ),
@@ -471,6 +482,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
             child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _initializeFirestore() async {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => const CupertinoAlertDialog(
+        title: Text('Initializing Database'),
+        content: Padding(
+          padding: EdgeInsets.only(top: 10),
+          child: CupertinoActivityIndicator(),
+        ),
+      ),
+    );
+
+    await FirestoreSetup.initializeCollections();
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Database Initialized'),
+        content: const Text(
+          'Firestore collections have been created. '
+          'Your transactions will now be saved permanently!',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
         ],
       ),

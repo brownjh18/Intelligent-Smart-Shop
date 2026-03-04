@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'onboarding_screen.dart';
-import 'main_screen.dart';
+import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,19 +21,19 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToScreen() async {
-    await Future.delayed(const Duration(seconds: 2));
+    // Wait for Firebase to initialize and check auth state
+    await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
     final authProvider = context.read<AuthProvider>();
 
-    // Check if already authenticated (demo mode or Firebase user)
-    if (authProvider.isAuthenticated) {
-      // In demo mode, userModel is already set
-      // In Firebase mode, authStateChanges should have loaded user data
+    // Check if user is already signed in (from previous session)
+    // This keeps user logged in even after app refresh
+    if (authProvider.isSignedIn) {
       Navigator.pushReplacement(
         context,
-        CupertinoPageRoute(builder: (_) => const MainScreen()),
+        CupertinoPageRoute(builder: (_) => const HomeScreen()),
       );
     } else {
       Navigator.pushReplacement(

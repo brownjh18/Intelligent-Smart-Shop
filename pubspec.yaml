@@ -22,7 +22,7 @@ dependencies:
   cloud_firestore: ^5.3.0
   firebase_storage: ^12.1.0
 
-  # Speech Recognition
+  # Speech Recognition - Uses device's built-in speech recognition
   speech_to_text: ^7.0.0
 
   # Translation

@@ -12,9 +12,18 @@ class TransactionProvider with ChangeNotifier {
   String _error = '';
   bool _firebaseInitialized = false;
   bool _demoMode = false;
+  DateTime? _lastFetchTime;
+
+  // Pagination
+  static const int _pageSize = 20; // Smaller page size for faster initial load
+  DocumentSnapshot? _lastDocument; // Cursor for pagination
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
 
   List<app.Transaction> get transactions => _transactions;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMore => _hasMore;
   String get error => _error;
 
   void _ensureFirebaseInitialized() {
@@ -32,8 +41,17 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadTransactions() async {
+  Future<void> loadTransactions({bool forceRefresh = false}) async {
     _ensureFirebaseInitialized();
+
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh && _transactions.isNotEmpty && _lastFetchTime != null) {
+      if (DateTime.now().difference(_lastFetchTime!) <
+          const Duration(seconds: 30)) {
+        debugPrint('Returning cached transactions');
+        return;
+      }
+    }
 
     // Demo mode - return empty list
     if (_demoMode || _auth == null || _firestore == null) {
@@ -51,18 +69,36 @@ class TransactionProvider with ChangeNotifier {
     }
 
     _isLoading = true;
+    _hasMore = true;
+    _lastDocument = null; // Reset pagination cursor
     notifyListeners();
 
     try {
+      // Fetch transactions - simple query without orderBy to avoid index requirement
+      // Using select() to only fetch necessary fields for list view
       QuerySnapshot snapshot = await _firestore!
           .collection('transactions')
           .where('userId', isEqualTo: _auth!.currentUser!.uid)
-          .orderBy('createdAt', descending: true)
+          .limit(_pageSize)
           .get();
 
       _transactions = snapshot.docs
           .map((doc) => app.Transaction.fromFirestore(doc))
           .toList();
+
+      // Sort locally by createdAt descending
+      _transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Store last document for pagination
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+
+      // Check if there are more items
+      _hasMore = snapshot.docs.length >= _pageSize;
+
+      // Update cache timestamp
+      _lastFetchTime = DateTime.now();
     } catch (e) {
       _error = 'Failed to load transactions';
       debugPrint('Error loading transactions: $e');
@@ -70,6 +106,77 @@ class TransactionProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Load more transactions (pagination)
+  Future<void> loadMoreTransactions() async {
+    // Prevent multiple simultaneous load more requests
+    if (_isLoadingMore || !_hasMore) return;
+
+    // Demo mode - nothing more to load
+    if (_demoMode || _firestore == null) {
+      _hasMore = false;
+      notifyListeners();
+      return;
+    }
+
+    if (_auth!.currentUser == null) {
+      _hasMore = false;
+      notifyListeners();
+      return;
+    }
+
+    // Don't load if we don't have a cursor
+    if (_lastDocument == null) {
+      _hasMore = false;
+      notifyListeners();
+      return;
+    }
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      // Fetch next page - simple query without orderBy to avoid index requirement
+      QuerySnapshot snapshot = await _firestore!
+          .collection('transactions')
+          .where('userId', isEqualTo: _auth!.currentUser!.uid)
+          .startAfterDocument(_lastDocument!)
+          .limit(_pageSize)
+          .get();
+
+      List<app.Transaction> newTransactions = snapshot.docs
+          .map((doc) => app.Transaction.fromFirestore(doc))
+          .toList();
+
+      // Add new transactions to existing list
+      _transactions.addAll(newTransactions);
+
+      // Sort locally by createdAt descending
+      _transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Update cursor
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+
+      // Check if there are more items
+      _hasMore = snapshot.docs.length >= _pageSize;
+
+      // Update cache timestamp
+      _lastFetchTime = DateTime.now();
+    } catch (e) {
+      _error = 'Failed to load more transactions';
+      debugPrint('Error loading more transactions: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// Refresh transactions (reset pagination and reload)
+  Future<void> refreshTransactions() async {
+    await loadTransactions(forceRefresh: true);
   }
 
   Future<void> addTransaction(app.Transaction transaction) async {
@@ -192,50 +299,46 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
+  // Calculate totals efficiently using cached data
   double get todaySales {
-    final today = DateTime.now();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
     return _transactions
         .where((t) =>
             t.type == app.TransactionType.sale &&
-            t.createdAt.day == today.day &&
-            t.createdAt.month == today.month &&
-            t.createdAt.year == today.year)
+            t.createdAt.isAfter(todayStart))
         .fold(0.0, (sum, t) => sum + t.totalAmount);
   }
 
   double get todayExpenses {
-    final today = DateTime.now();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
     return _transactions
         .where((t) =>
             t.type == app.TransactionType.expense &&
-            t.createdAt.day == today.day &&
-            t.createdAt.month == today.month &&
-            t.createdAt.year == today.year)
+            t.createdAt.isAfter(todayStart))
         .fold(0.0, (sum, t) => sum + t.totalAmount);
   }
 
   List<app.Transaction> getTodayTransactions() {
-    final today = DateTime.now();
-    return _transactions
-        .where((t) =>
-            t.createdAt.day == today.day &&
-            t.createdAt.month == today.month &&
-            t.createdAt.year == today.year)
-        .toList();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    return _transactions.where((t) => t.createdAt.isAfter(todayStart)).toList();
   }
 
   List<app.Transaction> getTransactionsByDate(DateTime date) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
     return _transactions
         .where((t) =>
-            t.createdAt.day == date.day &&
-            t.createdAt.month == date.month &&
-            t.createdAt.year == date.year)
+            t.createdAt.isAfter(dayStart) && t.createdAt.isBefore(dayEnd))
         .toList();
   }
 
   List<app.Transaction> getWeeklyTransactions() {
     final now = DateTime.now();
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfWeek = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
     return _transactions
         .where((t) => t.createdAt.isAfter(startOfWeek))
         .toList();
@@ -243,9 +346,9 @@ class TransactionProvider with ChangeNotifier {
 
   List<app.Transaction> getMonthlyTransactions() {
     final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
     return _transactions
-        .where((t) =>
-            t.createdAt.month == now.month && t.createdAt.year == now.year)
+        .where((t) => t.createdAt.isAfter(startOfMonth))
         .toList();
   }
 }

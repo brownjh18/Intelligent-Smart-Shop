@@ -315,6 +315,9 @@ class IOSTextField extends StatelessWidget {
   final Widget? prefix;
   final Widget? suffix;
   final VoidCallback? onTap;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   const IOSTextField({
     super.key,
@@ -325,6 +328,9 @@ class IOSTextField extends StatelessWidget {
     this.prefix,
     this.suffix,
     this.onTap,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -335,6 +341,9 @@ class IOSTextField extends StatelessWidget {
       keyboardType: keyboardType,
       obscureText: obscureText,
       onTap: onTap,
+      focusNode: focusNode,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       placeholderStyle: const TextStyle(
         color: IOSColors.labelTertiary,
         fontSize: 17,

@@ -15,7 +15,9 @@ import 'reports_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTabIndex;
+
+  const HomeScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -41,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TransactionProvider>().loadTransactions();
     });
@@ -282,12 +285,12 @@ class DashboardScreen extends StatelessWidget {
             hasAction: true,
             actionLabel: 'See All',
             onActionTap: () {
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (_) => const TransactionsListScreen(),
-                ),
-              );
+              // Switch to Transactions tab (index 1) in the bottom navigation
+              final homeState =
+                  context.findAncestorStateOfType<_HomeScreenState>();
+              homeState?.setState(() {
+                homeState._currentIndex = 1;
+              });
             },
           ),
           const SizedBox(height: IOSSpacing.xs),

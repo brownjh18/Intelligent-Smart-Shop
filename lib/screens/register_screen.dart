@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'login_screen.dart';
-import 'main_screen.dart';
+import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,6 +20,9 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -40,6 +43,9 @@ class _RegisterScreenState extends State<RegisterScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -63,11 +69,11 @@ class _RegisterScreenState extends State<RegisterScreen>
 
     if (mounted) {
       if (authProvider.isAuthenticated) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Navigate immediately without delay for faster experience
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          CupertinoPageRoute(builder: (_) => const MainScreen()),
+          CupertinoPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (authProvider.error.isNotEmpty) {
         // Reset animation on error
@@ -174,6 +180,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                   controller: _nameController,
                   placeholder: 'Full Name',
                   keyboardType: TextInputType.name,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) {
+                    _emailFocusNode.requestFocus();
+                  },
                   prefix: const Icon(CupertinoIcons.person_fill,
                       color: IOSColors.labelTertiary),
                 ),
@@ -181,8 +191,13 @@ class _RegisterScreenState extends State<RegisterScreen>
                 // Email field
                 IOSTextField(
                   controller: _emailController,
+                  focusNode: _emailFocusNode,
                   placeholder: 'Email',
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) {
+                    _passwordFocusNode.requestFocus();
+                  },
                   prefix: const Icon(CupertinoIcons.mail,
                       color: IOSColors.labelTertiary),
                 ),
@@ -190,8 +205,13 @@ class _RegisterScreenState extends State<RegisterScreen>
                 // Password field
                 IOSTextField(
                   controller: _passwordController,
+                  focusNode: _passwordFocusNode,
                   placeholder: 'Password',
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) {
+                    _confirmPasswordFocusNode.requestFocus();
+                  },
                   prefix: const Icon(CupertinoIcons.lock_fill,
                       color: IOSColors.labelTertiary),
                   suffix: GestureDetector(
@@ -212,8 +232,11 @@ class _RegisterScreenState extends State<RegisterScreen>
                 // Confirm Password field
                 IOSTextField(
                   controller: _confirmPasswordController,
+                  focusNode: _confirmPasswordFocusNode,
                   placeholder: 'Confirm Password',
                   obscureText: _obscureConfirmPassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _handleRegister(),
                   prefix: const Icon(CupertinoIcons.lock_fill,
                       color: IOSColors.labelTertiary),
                   suffix: GestureDetector(

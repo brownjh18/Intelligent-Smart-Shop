@@ -49,8 +49,9 @@ android {
 }
 
 dependencies {
+    // Firebase dependencies are managed in pubspec.yaml via firebase_core
     // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
 
     // Add the dependencies for Firebase products you want to use
     // When using the BoM, don't specify versions in Firebase dependencies

@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'register_screen.dart';
-import 'main_screen.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _passwordFocusNode = FocusNode();
   bool _obscurePassword = true;
   bool _isLoading = false;
   late AnimationController _animationController;
@@ -35,6 +36,7 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -57,11 +59,11 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (mounted) {
       if (authProvider.isAuthenticated) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Navigate immediately without delay for faster experience
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          CupertinoPageRoute(builder: (_) => const MainScreen()),
+          CupertinoPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (authProvider.error.isNotEmpty) {
         // Reset animation on error
@@ -160,6 +162,10 @@ class _LoginScreenState extends State<LoginScreen>
                   controller: _emailController,
                   placeholder: 'Email',
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) {
+                    _passwordFocusNode.requestFocus();
+                  },
                   prefix: const Icon(CupertinoIcons.mail,
                       color: IOSColors.labelTertiary),
                 ),
@@ -167,8 +173,11 @@ class _LoginScreenState extends State<LoginScreen>
                 // Password field
                 IOSTextField(
                   controller: _passwordController,
+                  focusNode: _passwordFocusNode,
                   placeholder: 'Password',
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _handleLogin(),
                   prefix: const Icon(CupertinoIcons.lock_fill,
                       color: IOSColors.labelTertiary),
                   suffix: GestureDetector(

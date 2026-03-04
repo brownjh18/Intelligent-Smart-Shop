@@ -5,9 +5,14 @@ import 'package:ismart_shop/models/transaction.dart' as app;
 import 'package:ismart_shop/models/transaction_item.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/transaction_provider.dart';
+import 'package:ismart_shop/providers/language_provider.dart';
+import 'package:ismart_shop/services/speech_service.dart';
+import 'package:ismart_shop/services/nlp_service.dart';
+import 'package:ismart_shop/services/translation_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
 import 'home_screen.dart';
+import 'transaction_review_screen.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -17,6 +22,12 @@ class AddTransactionScreen extends StatefulWidget {
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  final SpeechService _speechService = SpeechService();
+  bool _isSpeechInitialized = false;
+  bool _isListening = false;
+  String _voiceStatusMessage = 'Tap to speak';
+  int _listeningItemIndex = -1; // -1 means not listening for any specific item
+
   int _currentIndex = 0;
   app.TransactionType _type = app.TransactionType.sale;
   List<TransactionItem> _items = [];
@@ -36,6 +47,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.initState();
     // Add one empty item by default
     _addItem();
+    // Initialize speech service
+    _initializeSpeech();
+  }
+
+  Future<void> _initializeSpeech() async {
+    final success = await _speechService.initialize();
+    setState(() {
+      _isSpeechInitialized = success;
+      if (!_isSpeechInitialized) {
+        _voiceStatusMessage = 'Voice not available - try on physical device';
+        debugPrint(
+            'SpeechService: Initialization failed - ${_speechService.lastError}');
+      }
+    });
   }
 
   @override
@@ -44,6 +69,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _categoryController.dispose();
     _customerNameController.dispose();
     _notesController.dispose();
+    _speechService.stopListening();
     super.dispose();
   }
 
@@ -63,6 +89,260 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() {
       _items.add(newItem);
     });
+  }
+
+  /// Start voice input for a specific item (or -1 for general input)
+  Future<void> _startVoiceInput({int itemIndex = -1}) async {
+    if (!_isSpeechInitialized) {
+      _showVoiceError(
+          'Speech recognition is not available on this device. Please try on a physical device.');
+      return;
+    }
+
+    setState(() {
+      _listeningItemIndex = itemIndex;
+      _isListening = true;
+      _voiceStatusMessage = itemIndex == -1
+          ? 'Listening for transaction...'
+          : 'Listening for item...';
+    });
+
+    try {
+      final languageProvider = context.read<LanguageProvider>();
+      final localeId =
+          languageProvider.currentLanguage == 'lg' ? 'lg' : 'en_US';
+
+      final success = await _speechService.startListening(localeId: localeId);
+
+      if (!success) {
+        _showVoiceError(
+            'Failed to start speech recognition: ${_speechService.lastError}');
+        return;
+      }
+
+      // Wait for speech to complete (with timeout for emulator)
+      await _waitForSpeechResult();
+    } catch (e) {
+      _showVoiceError('Failed to start voice recognition: $e');
+    }
+  }
+
+  Future<void> _waitForSpeechResult() async {
+    // Poll until speech stops or timeout (30 seconds max)
+    int pollCount = 0;
+    const maxPolls = 60; // 30 seconds at 500ms intervals
+
+    while (_speechService.isListening && pollCount < maxPolls) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      pollCount++;
+    }
+
+    // Even if we timed out, get whatever text we have
+    final transcribedText = _speechService.text;
+
+    // Force stop if still listening
+    if (_speechService.isListening) {
+      await _speechService.stopListening();
+    }
+
+    setState(() {
+      _isListening = false;
+    });
+
+    debugPrint('SpeechService: Final transcribed text: "$transcribedText"');
+    debugPrint('SpeechService: Last status: ${_speechService.lastStatus}');
+    debugPrint('SpeechService: Last error: ${_speechService.lastError}');
+
+    if (transcribedText.isEmpty) {
+      // Show error message - speech recognition may not work on emulator
+      _showVoiceError(
+          'No speech detected. Please speak clearly and try again.\n\nNote: Speech recognition requires a physical device with microphone.');
+      return;
+    }
+
+    // Process the transcribed text
+    _processVoiceInput(transcribedText);
+  }
+
+  void _processVoiceInput(String transcribedText) {
+    // Get current language and translate if needed
+    final languageProvider = context.read<LanguageProvider>();
+    final processedText = TranslationService.processText(
+      transcribedText,
+      languageProvider.currentLanguage,
+    );
+
+    // Parse the transaction using NLP
+    final intent = NLPService.parseTransaction(processedText);
+
+    setState(() {
+      // Update transaction type if detected
+      _type = intent.type;
+
+      // Update category if detected
+      if (intent.category.isNotEmpty) {
+        _categoryController.text = intent.category;
+        _category = intent.category;
+      }
+
+      // If listening for a specific item, update that item
+      if (_listeningItemIndex >= 0 && _listeningItemIndex < _items.length) {
+        final currentItem = _items[_listeningItemIndex];
+        final updatedItem = currentItem.copyWith(
+          itemName: intent.itemName.isNotEmpty
+              ? intent.itemName
+              : currentItem.itemName,
+          pricePerUnit:
+              intent.amount > 0 ? intent.amount : currentItem.pricePerUnit,
+          amount: intent.amount > 0
+              ? intent.amount * currentItem.quantity
+              : currentItem.amount,
+        );
+        _items[_listeningItemIndex] = updatedItem;
+        _voiceStatusMessage = 'Item updated: ${intent.itemName}';
+      } else {
+        // General transaction input - update first item or create new
+        if (_items.isNotEmpty) {
+          final firstItem = _items[0];
+          final updatedItem = firstItem.copyWith(
+            itemName: intent.itemName.isNotEmpty
+                ? intent.itemName
+                : firstItem.itemName,
+            pricePerUnit:
+                intent.amount > 0 ? intent.amount : firstItem.pricePerUnit,
+            amount: intent.amount > 0
+                ? intent.amount * firstItem.quantity
+                : firstItem.amount,
+          );
+          _items[0] = updatedItem;
+        } else {
+          _addItem();
+          final newItem = _items[0].copyWith(
+            itemName: intent.itemName,
+            pricePerUnit: intent.amount,
+            amount: intent.amount,
+          );
+          _items[0] = newItem;
+        }
+        _voiceStatusMessage =
+            'Transaction parsed: ${intent.itemName} - UGX ${intent.amount.toStringAsFixed(0)}';
+      }
+    });
+
+    // Show confirmation snackbar
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_voiceStatusMessage),
+          backgroundColor: IOSColors.primary,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopVoiceInput() async {
+    await _speechService.stopListening();
+    setState(() {
+      _isListening = false;
+      _listeningItemIndex = -1;
+    });
+  }
+
+  void _showVoiceError(String message) {
+    setState(() {
+      _isListening = false;
+      _listeningItemIndex = -1;
+    });
+
+    // Show error dialog
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Voice Input'),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Navigate to transaction review screen with the captured text
+  void _showReviewPreview(String transcribedText) {
+    final processedText = TranslationService.processText(
+      transcribedText,
+      context.read<LanguageProvider>().currentLanguage,
+    );
+    final intent = NLPService.parseTransaction(processedText);
+
+    Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => TransactionReviewScreen(
+          transcribedText: transcribedText,
+          transactionIntent: intent,
+        ),
+      ),
+    );
+  }
+
+  /// Build a voice input button for items
+  Widget _buildVoiceInputButton({int itemIndex = -1, bool isCompact = false}) {
+    final isCurrentlyListening =
+        _isListening && _listeningItemIndex == itemIndex;
+
+    return GestureDetector(
+      onTap: () {
+        if (isCurrentlyListening) {
+          _stopVoiceInput();
+        } else {
+          _startVoiceInput(itemIndex: itemIndex);
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(isCompact ? 6 : 8),
+        decoration: BoxDecoration(
+          color: isCurrentlyListening
+              ? IOSColors.error.withOpacity(0.15)
+              : IOSColors.primary.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+          border: Border.all(
+            color: isCurrentlyListening
+                ? IOSColors.error
+                : IOSColors.primary.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isCurrentlyListening
+                  ? CupertinoIcons.stop_fill
+                  : CupertinoIcons.mic_fill,
+              size: isCompact ? 16 : 18,
+              color: isCurrentlyListening ? IOSColors.error : IOSColors.primary,
+            ),
+            if (!isCompact) ...[
+              const SizedBox(width: 4),
+              Text(
+                isCurrentlyListening ? 'Stop' : 'Voice',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isCurrentlyListening
+                      ? IOSColors.error
+                      : IOSColors.primary,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   void _removeItem(int index) {
@@ -150,7 +430,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        CupertinoPageRoute(builder: (_) => const HomeScreen()),
+        CupertinoPageRoute(
+            builder: (_) => const HomeScreen(initialTabIndex: 1)),
       );
     }
   }
@@ -197,7 +478,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       backgroundColor: IOSColors.secondarySystemBackground,
       appBar: IOSNavigationBar(
         title: 'Add Transaction',
-        automaticallyImplyLeading: true,
+        automaticallyImplyLeading: false,
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              CupertinoPageRoute(builder: (_) => const HomeScreen()),
+            );
+          },
+          child: const Icon(
+            CupertinoIcons.xmark,
+            color: IOSColors.labelPrimary,
+          ),
+        ),
         actions: [
           CupertinoButton(
             onPressed: _saveTransaction,
@@ -300,13 +594,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Items',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: IOSColors.labelSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Row(
+                        children: [
+                          const Text(
+                            'Items',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: IOSColors.labelSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: IOSSpacing.sm),
+                          // Voice input button for quick transaction entry
+                          _buildVoiceInputButton(),
+                        ],
                       ),
                       CupertinoButton(
                         onPressed: _addItem,
@@ -323,6 +624,51 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ],
                   ),
                   const SizedBox(height: IOSSpacing.sm),
+
+                  // Listening indicator
+                  if (_isListening)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: IOSSpacing.sm),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: IOSSpacing.md,
+                        vertical: IOSSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: IOSColors.error.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(IOSBorderRadius.small),
+                        border:
+                            Border.all(color: IOSColors.error.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.mic_fill,
+                            color: IOSColors.error,
+                            size: 16,
+                          ),
+                          const SizedBox(width: IOSSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              _voiceStatusMessage,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: IOSColors.error,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _stopVoiceInput,
+                            child: Icon(
+                              CupertinoIcons.stop_fill,
+                              color: IOSColors.error,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   // Items List
                   if (_items.isEmpty)
@@ -542,18 +888,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildItemWidget(int index, TransactionItem item) {
+    final isCurrentlyListening = _isListening && _listeningItemIndex == index;
+
     return Container(
       margin: const EdgeInsets.only(bottom: IOSSpacing.md),
       padding: const EdgeInsets.all(IOSSpacing.md),
       decoration: BoxDecoration(
         color: IOSColors.secondarySystemBackground,
         borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
-        border: Border.all(color: IOSColors.labelQuaternary),
+        border: Border.all(
+          color: isCurrentlyListening
+              ? IOSColors.primary
+              : IOSColors.labelQuaternary,
+          width: isCurrentlyListening ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row for item name and delete button
+          // Row for item name, voice button and delete button
           Row(
             children: [
               Expanded(
@@ -574,6 +927,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         TextSelection.collapsed(offset: item.itemName.length),
                 ),
               ),
+              // Voice input button for this item
+              _buildVoiceInputButton(itemIndex: index, isCompact: true),
               if (_items.length > 1)
                 CupertinoButton(
                   onPressed: () => _removeItem(index),

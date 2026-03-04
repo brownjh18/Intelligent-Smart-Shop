@@ -18,9 +18,38 @@ class TransactionsListScreen extends StatefulWidget {
 class _TransactionsListScreenState extends State<TransactionsListScreen> {
   String _filterType = 'all';
   DateTime? _selectedDate;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TransactionProvider>().loadTransactions();
+    });
+    // Add scroll listener for infinite loading
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    // Load more when user scrolls near the bottom
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<TransactionProvider>();
+      if (!provider.isLoadingMore && provider.hasMore) {
+        provider.loadMoreTransactions();
+      }
+    }
+  }
 
   // Date picker getter
-  Future<void> get _selectDate async {
+  Future<void> _selectDate() async {
     final selected = await showCupertinoModalPopup<DateTime>(
       context: context,
       builder: (context) => Container(
@@ -76,14 +105,6 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
       return 'Today, ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     }
     return '${dateTime.day}/${dateTime.month}, ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TransactionProvider>().loadTransactions();
-    });
   }
 
   @override
@@ -185,7 +206,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                       const SizedBox(width: IOSSpacing.xs),
                       CupertinoButton(
                         onPressed: () async {
-                          await _selectDate;
+                          await _selectDate();
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -304,9 +325,20 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                         subtitle: 'Start recording your sales and expenses',
                       )
                     : ListView.builder(
+                        controller: _scrollController,
                         padding: const EdgeInsets.all(IOSSpacing.md),
-                        itemCount: groupedTransactions.length,
+                        itemCount: groupedTransactions.length +
+                            (transactionProvider.hasMore ? 1 : 0),
                         itemBuilder: (context, index) {
+                          // Show loading indicator at the bottom when loading more
+                          if (index == groupedTransactions.length) {
+                            return const Padding(
+                              padding: EdgeInsets.all(IOSSpacing.md),
+                              child: Center(
+                                child: CupertinoActivityIndicator(),
+                              ),
+                            );
+                          }
                           String dateKey =
                               groupedTransactions.keys.elementAt(index);
                           List<app.Transaction> transactions =
