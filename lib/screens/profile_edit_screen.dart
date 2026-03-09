@@ -246,7 +246,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               ),
             ),
             const SizedBox(height: IOSSpacing.md),
-            Text(
+            const Text(
               'Tap to change photo',
               style: TextStyle(
                 color: IOSColors.labelSecondary,

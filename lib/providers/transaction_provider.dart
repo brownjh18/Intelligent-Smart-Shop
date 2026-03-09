@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 import 'package:ismart_shop/models/transaction.dart' as app;
+import 'package:ismart_shop/services/local_database_service.dart';
+import 'package:ismart_shop/services/connectivity_service.dart';
 
 class TransactionProvider with ChangeNotifier {
   FirebaseFirestore? _firestore;
   FirebaseAuth? _auth;
+  ConnectivityService? _connectivityService;
 
   List<app.Transaction> _transactions = [];
   bool _isLoading = false;
@@ -14,23 +18,35 @@ class TransactionProvider with ChangeNotifier {
   bool _demoMode = false;
   DateTime? _lastFetchTime;
 
+  // Offline sync
+  bool _isOnline = true;
+  int _pendingSyncCount = 0;
+  bool _isSyncing = false;
+
   // Pagination
-  static const int _pageSize = 20; // Smaller page size for faster initial load
-  DocumentSnapshot? _lastDocument; // Cursor for pagination
+  static const int _pageSize = 20;
+  DocumentSnapshot? _lastDocument;
   bool _hasMore = true;
   bool _isLoadingMore = false;
+
+  // UUID generator
+  final _uuid = const Uuid();
 
   List<app.Transaction> get transactions => _transactions;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _hasMore;
   String get error => _error;
+  bool get isOnline => _isOnline;
+  int get pendingSyncCount => _pendingSyncCount;
+  bool get isSyncing => _isSyncing;
 
   void _ensureFirebaseInitialized() {
     if (!_firebaseInitialized) {
       try {
         _firestore = FirebaseFirestore.instance;
         _auth = FirebaseAuth.instance;
+        _connectivityService = ConnectivityService();
         _firebaseInitialized = true;
         _demoMode = false;
         debugPrint('Firebase initialized successfully in TransactionProvider');
@@ -41,6 +57,36 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
+  /// Initialize the provider - must be called after Firebase is ready
+  Future<void> initialize() async {
+    _ensureFirebaseInitialized();
+
+    // Initialize connectivity service
+    if (_connectivityService != null) {
+      await _connectivityService!.initialize();
+      _isOnline = _connectivityService!.isOnline;
+
+      // Listen for connectivity changes
+      _connectivityService!.addListener(_onConnectivityChanged);
+    }
+  }
+
+  /// Handle connectivity changes
+  void _onConnectivityChanged() {
+    if (_connectivityService != null) {
+      final wasOnline = _isOnline;
+      _isOnline = _connectivityService!.isOnline;
+
+      // Trigger sync when coming back online
+      if (!wasOnline && _isOnline) {
+        debugPrint('Back online - triggering sync');
+        _syncPendingTransactions();
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Load transactions from local database first, then sync with Firebase
   Future<void> loadTransactions({bool forceRefresh = false}) async {
     _ensureFirebaseInitialized();
 
@@ -53,11 +99,9 @@ class TransactionProvider with ChangeNotifier {
       }
     }
 
-    // Demo mode - return empty list
-    if (_demoMode || _auth == null || _firestore == null) {
-      _transactions = [];
-      _isLoading = false;
-      notifyListeners();
+    // Demo mode - return from local database
+    if (_demoMode || _firestore == null || _auth == null) {
+      await _loadFromLocalDatabase();
       return;
     }
 
@@ -70,32 +114,20 @@ class TransactionProvider with ChangeNotifier {
 
     _isLoading = true;
     _hasMore = true;
-    _lastDocument = null; // Reset pagination cursor
+    _lastDocument = null;
     notifyListeners();
 
     try {
-      // Fetch transactions - simple query without orderBy to avoid index requirement
-      // Using select() to only fetch necessary fields for list view
-      QuerySnapshot snapshot = await _firestore!
-          .collection('transactions')
-          .where('userId', isEqualTo: _auth!.currentUser!.uid)
-          .limit(_pageSize)
-          .get();
+      // First load from local database for offline support
+      await _loadFromLocalDatabase();
 
-      _transactions = snapshot.docs
-          .map((doc) => app.Transaction.fromFirestore(doc))
-          .toList();
-
-      // Sort locally by createdAt descending
-      _transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      // Store last document for pagination
-      if (snapshot.docs.isNotEmpty) {
-        _lastDocument = snapshot.docs.last;
+      // Then try to sync with Firebase if online
+      if (_isOnline) {
+        await _syncWithFirebase();
       }
 
-      // Check if there are more items
-      _hasMore = snapshot.docs.length >= _pageSize;
+      // Update pending sync count
+      await _updatePendingSyncCount();
 
       // Update cache timestamp
       _lastFetchTime = DateTime.now();
@@ -108,9 +140,84 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
+  /// Load transactions from local database
+  Future<void> _loadFromLocalDatabase() async {
+    if (_auth?.currentUser == null) return;
+
+    try {
+      final localTransactions = await LocalDatabaseService.getTransactions(
+        _auth!.currentUser!.uid,
+      );
+
+      _transactions =
+          localTransactions.map((local) => local.toTransaction()).toList();
+
+      // Sort by createdAt descending
+      _transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      debugPrint(
+          'Loaded ${_transactions.length} transactions from local database');
+    } catch (e) {
+      debugPrint('Error loading from local database: $e');
+    }
+  }
+
+  /// Sync with Firebase and update local database
+  Future<void> _syncWithFirebase() async {
+    if (_firestore == null || _auth?.currentUser == null) return;
+
+    try {
+      // Fetch from Firebase
+      QuerySnapshot snapshot = await _firestore!
+          .collection('transactions')
+          .where('userId', isEqualTo: _auth!.currentUser!.uid)
+          .limit(_pageSize)
+          .get();
+
+      final firebaseTransactions = snapshot.docs
+          .map((doc) => app.Transaction.fromFirestore(doc))
+          .toList();
+
+      // Update local database with Firebase data
+      for (final transaction in firebaseTransactions) {
+        final localTransaction = LocalTransaction.fromTransaction(
+          transaction,
+          firebaseId: transaction.id,
+          syncStatus: SyncStatus.synced,
+        );
+        await LocalDatabaseService.insertTransaction(localTransaction);
+      }
+
+      // Reload from local database to get merged data
+      await _loadFromLocalDatabase();
+
+      // Store last document for pagination
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+
+      _hasMore = snapshot.docs.length >= _pageSize;
+    } catch (e) {
+      debugPrint('Error syncing with Firebase: $e');
+      // Continue with local data if sync fails
+    }
+  }
+
+  /// Update pending sync count
+  Future<void> _updatePendingSyncCount() async {
+    if (_auth?.currentUser == null) return;
+
+    try {
+      _pendingSyncCount = await LocalDatabaseService.getUnsyncedCount(
+        _auth!.currentUser!.uid,
+      );
+    } catch (e) {
+      debugPrint('Error updating pending sync count: $e');
+    }
+  }
+
   /// Load more transactions (pagination)
   Future<void> loadMoreTransactions() async {
-    // Prevent multiple simultaneous load more requests
     if (_isLoadingMore || !_hasMore) return;
 
     // Demo mode - nothing more to load
@@ -126,7 +233,6 @@ class TransactionProvider with ChangeNotifier {
       return;
     }
 
-    // Don't load if we don't have a cursor
     if (_lastDocument == null) {
       _hasMore = false;
       notifyListeners();
@@ -137,7 +243,6 @@ class TransactionProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Fetch next page - simple query without orderBy to avoid index requirement
       QuerySnapshot snapshot = await _firestore!
           .collection('transactions')
           .where('userId', isEqualTo: _auth!.currentUser!.uid)
@@ -149,21 +254,14 @@ class TransactionProvider with ChangeNotifier {
           .map((doc) => app.Transaction.fromFirestore(doc))
           .toList();
 
-      // Add new transactions to existing list
       _transactions.addAll(newTransactions);
-
-      // Sort locally by createdAt descending
       _transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      // Update cursor
       if (snapshot.docs.isNotEmpty) {
         _lastDocument = snapshot.docs.last;
       }
 
-      // Check if there are more items
       _hasMore = snapshot.docs.length >= _pageSize;
-
-      // Update cache timestamp
       _lastFetchTime = DateTime.now();
     } catch (e) {
       _error = 'Failed to load more transactions';
@@ -174,15 +272,19 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
-  /// Refresh transactions (reset pagination and reload)
+  /// Refresh transactions
   Future<void> refreshTransactions() async {
     await loadTransactions(forceRefresh: true);
   }
 
+  /// Add a new transaction - saves locally first, then syncs to Firebase
   Future<void> addTransaction(app.Transaction transaction) async {
     _ensureFirebaseInitialized();
 
-    // Demo mode - add locally
+    // Generate a unique ID for local storage
+    final localId = _uuid.v4();
+
+    // Demo mode - add locally only
     if (_demoMode || _firestore == null) {
       _isLoading = true;
       notifyListeners();
@@ -197,35 +299,100 @@ class TransactionProvider with ChangeNotifier {
       return;
     }
 
-    // Optimistic update - add to local list immediately
-    app.Transaction newTransaction = transaction.copyWith(
-      id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+    // Create local transaction with pending sync status
+    final localTransaction = LocalTransaction.fromTransaction(
+      transaction.copyWith(id: localId),
+      syncStatus: SyncStatus.pending,
     );
-    _transactions.insert(0, newTransaction);
-    _error = '';
-    notifyListeners();
 
-    // Save to Firestore in background without blocking UI
+    // Save to local database first (offline-first)
     try {
-      DocumentReference docRef = await _firestore!
-          .collection('transactions')
-          .add(transaction.toFirestore());
-
-      // Update with real ID
-      int index = _transactions.indexWhere((t) => t.id == newTransaction.id);
-      if (index != -1) {
-        _transactions[index] = newTransaction.copyWith(id: docRef.id);
-        notifyListeners();
-      }
-    } catch (e) {
-      // Remove from list if save failed
-      _transactions.removeWhere((t) => t.id == newTransaction.id);
-      _error = 'Failed to save transaction';
+      await LocalDatabaseService.insertTransaction(localTransaction);
+      _transactions.insert(0, localTransaction.toTransaction());
+      _pendingSyncCount++;
+      _error = '';
       notifyListeners();
-      debugPrint('Error adding transaction: $e');
+      debugPrint('Transaction saved locally with ID: $localId');
+    } catch (e) {
+      _error = 'Failed to save transaction locally';
+      debugPrint('Error saving transaction locally: $e');
+      notifyListeners();
+      return;
+    }
+
+    // Try to sync to Firebase if online
+    if (_isOnline) {
+      await _syncTransactionToFirebase(localTransaction);
+    } else {
+      debugPrint('Offline - transaction will be synced when online');
     }
   }
 
+  /// Sync a single transaction to Firebase
+  Future<void> _syncTransactionToFirebase(
+      LocalTransaction localTransaction) async {
+    if (_firestore == null || _auth?.currentUser == null) return;
+
+    try {
+      // Add to Firebase
+      final docRef = await _firestore!
+          .collection('transactions')
+          .add(localTransaction.toTransaction().toFirestore());
+
+      // Mark as synced in local database
+      await LocalDatabaseService.markAsSynced(localTransaction.id, docRef.id);
+
+      // Update the transaction in the list with the Firebase ID
+      final index =
+          _transactions.indexWhere((t) => t.id == localTransaction.id);
+      if (index != -1) {
+        _transactions[index] = localTransaction
+            .copyWith(
+              firebaseId: docRef.id,
+              syncStatus: SyncStatus.synced,
+            )
+            .toTransaction();
+      }
+
+      _pendingSyncCount--;
+      debugPrint('Transaction synced to Firebase: ${docRef.id}');
+      notifyListeners();
+    } catch (e) {
+      // Mark as failed
+      await LocalDatabaseService.markAsFailed(localTransaction.id);
+      debugPrint('Failed to sync transaction: $e');
+    }
+  }
+
+  /// Sync all pending transactions to Firebase
+  Future<void> _syncPendingTransactions() async {
+    if (_isSyncing || !_isOnline || _auth?.currentUser == null) return;
+
+    _isSyncing = true;
+    notifyListeners();
+
+    try {
+      final unsyncedTransactions =
+          await LocalDatabaseService.getUnsyncedTransactions(
+        _auth!.currentUser!.uid,
+      );
+
+      debugPrint('Syncing ${unsyncedTransactions.length} pending transactions');
+
+      for (final localTransaction in unsyncedTransactions) {
+        await _syncTransactionToFirebase(localTransaction);
+      }
+
+      await _updatePendingSyncCount();
+    } catch (e) {
+      debugPrint('Error syncing pending transactions: $e');
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Update an existing transaction
   Future<void> updateTransaction(app.Transaction transaction) async {
     _ensureFirebaseInitialized();
 
@@ -244,29 +411,45 @@ class TransactionProvider with ChangeNotifier {
       return;
     }
 
-    _isLoading = true;
-    notifyListeners();
+    // Update locally first
+    final localTransaction = LocalTransaction.fromTransaction(
+      transaction,
+      syncStatus: _isOnline ? SyncStatus.pending : SyncStatus.pending,
+    );
 
     try {
-      await _firestore!
-          .collection('transactions')
-          .doc(transaction.id)
-          .update(transaction.toFirestore());
+      await LocalDatabaseService.updateTransaction(localTransaction);
 
       int index = _transactions.indexWhere((t) => t.id == transaction.id);
       if (index != -1) {
         _transactions[index] = transaction;
       }
       _error = '';
-    } catch (e) {
-      _error = 'Failed to update transaction';
-      debugPrint('Error updating transaction: $e');
-    } finally {
-      _isLoading = false;
       notifyListeners();
+    } catch (e) {
+      _error = 'Failed to update transaction locally';
+      debugPrint('Error updating transaction locally: $e');
+    }
+
+    // Try to sync to Firebase if online
+    if (_isOnline) {
+      try {
+        await _firestore!
+            .collection('transactions')
+            .doc(transaction.id)
+            .update(transaction.toFirestore());
+
+        // Mark as synced
+        await LocalDatabaseService.markAsSynced(transaction.id, transaction.id);
+        _pendingSyncCount = await LocalDatabaseService.getUnsyncedCount(
+            _auth!.currentUser!.uid);
+      } catch (e) {
+        debugPrint('Error updating transaction in Firebase: $e');
+      }
     }
   }
 
+  /// Delete a transaction
   Future<void> deleteTransaction(String transactionId) async {
     _ensureFirebaseInitialized();
 
@@ -282,20 +465,36 @@ class TransactionProvider with ChangeNotifier {
       return;
     }
 
-    _isLoading = true;
-    notifyListeners();
-
+    // Delete from local database first
     try {
-      await _firestore!.collection('transactions').doc(transactionId).delete();
-
+      await LocalDatabaseService.deleteTransaction(transactionId);
       _transactions.removeWhere((t) => t.id == transactionId);
       _error = '';
-    } catch (e) {
-      _error = 'Failed to delete transaction';
-      debugPrint('Error deleting transaction: $e');
-    } finally {
-      _isLoading = false;
       notifyListeners();
+    } catch (e) {
+      _error = 'Failed to delete transaction locally';
+      debugPrint('Error deleting transaction locally: $e');
+    }
+
+    // Try to delete from Firebase if online
+    if (_isOnline) {
+      try {
+        await _firestore!
+            .collection('transactions')
+            .doc(transactionId)
+            .delete();
+      } catch (e) {
+        debugPrint('Error deleting transaction from Firebase: $e');
+      }
+    }
+
+    await _updatePendingSyncCount();
+  }
+
+  /// Force sync all pending transactions
+  Future<void> syncNow() async {
+    if (_isOnline && _pendingSyncCount > 0) {
+      await _syncPendingTransactions();
     }
   }
 
@@ -350,5 +549,11 @@ class TransactionProvider with ChangeNotifier {
     return _transactions
         .where((t) => t.createdAt.isAfter(startOfMonth))
         .toList();
+  }
+
+  @override
+  void dispose() {
+    _connectivityService?.removeListener(_onConnectivityChanged);
+    super.dispose();
   }
 }

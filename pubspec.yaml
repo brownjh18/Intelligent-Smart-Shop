@@ -41,6 +41,17 @@ dependencies:
   # Image Picking
   image_picker: ^1.0.4
 
+  # Local Database (SQLite)
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+
+  # Connectivity
+  connectivity_plus: ^5.0.2
+
+  # UUID for generating unique IDs
+  uuid: ^4.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

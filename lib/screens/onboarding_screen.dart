@@ -225,9 +225,9 @@ class OnboardingScreen extends StatelessWidget {
       context: context,
       builder: (context) => Container(
         height: 200,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: IOSColors.systemBackground,
-          borderRadius: const BorderRadius.vertical(
+          borderRadius: BorderRadius.vertical(
             top: Radius.circular(IOSBorderRadius.large),
           ),
         ),

@@ -78,9 +78,9 @@ class IOSNavigationBar extends StatelessWidget implements PreferredSizeWidget {
     return CupertinoButton(
       onPressed: () => Navigator.maybePop(context),
       padding: EdgeInsets.zero,
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
           Icon(
             CupertinoIcons.back,
             color: IOSColors.primary,

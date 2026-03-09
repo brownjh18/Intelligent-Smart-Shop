@@ -118,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         floatingActionButton: _currentIndex == 0
             ? Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [IOSColors.primary, IOSColors.primaryDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? Text(
                       label,
                       key: ValueKey(label),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: IOSColors.primary,
@@ -212,7 +212,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final userName =
-        authProvider.userModel?.displayName?.split(' ').first ?? '';
+        authProvider.userModel?.displayName.split(' ').first ?? '';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(IOSSpacing.md),
@@ -223,7 +223,7 @@ class DashboardScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(IOSSpacing.lg),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [

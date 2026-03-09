@@ -84,8 +84,8 @@ class _TextEntryScreenState extends State<TextEntryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: const [
+                      const Row(
+                        children: [
                           Icon(
                             CupertinoIcons.pencil_circle_fill,
                             color: IOSColors.primary,
@@ -194,8 +194,8 @@ class _TextEntryScreenState extends State<TextEntryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: const [
+                      const Row(
+                        children: [
                           Icon(
                             CupertinoIcons.lightbulb_fill,
                             color: IOSColors.warning,

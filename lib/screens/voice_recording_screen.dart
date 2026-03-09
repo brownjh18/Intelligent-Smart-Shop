@@ -26,6 +26,7 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
   bool _isInitialized = false;
   bool _isListening = false;
   String _statusMessage = 'Tap the microphone to start';
+  bool _isInitializing = false;
 
   // Animation controllers
   late AnimationController _pulseController;
@@ -38,6 +39,15 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     super.initState();
     _initializeAnimations();
     _initializeSpeech();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reinitialize speech if needed when screen becomes visible
+    if (!_isInitializing && !_isInitialized) {
+      _initializeSpeech();
+    }
   }
 
   void _initializeAnimations() {
@@ -69,23 +79,46 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
   }
 
   Future<void> _initializeSpeech() async {
-    final success = await _speechService.initialize();
-    setState(() {
-      _isInitialized = success;
-      if (!_isInitialized) {
-        _statusMessage = 'Voice not available. Try on physical device.';
+    // Prevent multiple simultaneous initializations
+    if (_isInitializing) return;
+
+    _isInitializing = true;
+    try {
+      // Reset speech service state first
+      _speechService.reset();
+
+      final success = await _speechService.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = success;
+          if (!_isInitialized) {
+            _statusMessage = 'Voice not available. Try on physical device.';
+          }
+        });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isInitialized = false;
+          _statusMessage = 'Voice initialization failed. Try again.';
+        });
+      }
+    } finally {
+      _isInitializing = false;
+    }
   }
 
   Future<void> _startRecording() async {
+    // If already listening, stop first
+    if (_isListening) {
+      await _stopRecording();
+      return;
+    }
+
     // Attempt real speech recognition first - try to initialize if not done
     if (!_isInitialized) {
-      final success = await _speechService.initialize();
-      setState(() {
-        _isInitialized = success;
-      });
-      if (!success) {
+      await _initializeSpeech();
+      if (!_isInitialized) {
         _showErrorDialog(
             'Speech recognition is not available. Please use a physical device with microphone and internet connection, or check app permissions.');
         return;
@@ -114,15 +147,43 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
           ? _speechService.lastStatus
           : 'No status';
 
-      _showErrorDialog(
-          'Failed to start recording.\n\nDetails:\n- Error: $errorMsg\n- Status: $statusMsg\n\nTip: This feature requires a physical device with microphone and Google Speech Services.');
+      // Provide more helpful error messages
+      String helpfulMessage;
+      if (errorMsg.contains('not available') ||
+          errorMsg.contains('unavailable')) {
+        helpfulMessage =
+            'Speech recognition is not available on this device.\n\nPlease ensure:\n• You are using a physical device\n• Microphone permission is granted\n• Internet connection is available';
+      } else if (errorMsg.contains('timeout')) {
+        helpfulMessage =
+            'No speech detected. Please speak clearly and try again.';
+      } else {
+        helpfulMessage =
+            'Failed to start recording.\n\nError: $errorMsg\nStatus: $statusMsg';
+      }
+
+      _showErrorDialog(helpfulMessage);
+
+      // Reset state on error
+      setState(() {
+        _statusMessage = 'Tap the microphone to try again';
+      });
     }
   }
 
   Future<void> _stopRecording() async {
-    await _speechService.stopListening();
+    // Stop listening if active
+    if (_isListening) {
+      try {
+        await _speechService.stopListening();
+      } catch (e) {
+        debugPrint('Error stopping speech: $e');
+      }
+    }
+
     _pulseController.stop();
     _waveController.stop();
+
+    if (!mounted) return;
 
     setState(() {
       _isListening = false;
@@ -130,6 +191,8 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
 
     // Wait a moment for final results
     await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
 
     final text = _speechService.text;
     debugPrint('Transcribed text: "$text"');
@@ -172,6 +235,13 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     );
 
     final intent = NLPService.parseTransaction(processedText);
+
+    // Debug: Log the parsing results
+    debugPrint('=== Voice Recording - NLP Results ===');
+    debugPrint('Original text: $_transcribedText');
+    debugPrint('Processed text: $processedText');
+    debugPrint(
+        'Parsed - Type: ${intent.type}, Amount: ${intent.amount}, Item: ${intent.itemName}, Category: ${intent.category}');
 
     Navigator.push(
       context,

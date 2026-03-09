@@ -38,7 +38,8 @@ void main() async {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider()),
-          ChangeNotifierProvider(create: (_) => TransactionProvider()),
+          ChangeNotifierProvider(
+              create: (_) => TransactionProvider()..initialize()),
           ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ],
         child: LocalizedApp(delegate, const MyApp()),
@@ -51,7 +52,8 @@ void main() async {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider()),
-          ChangeNotifierProvider(create: (_) => TransactionProvider()),
+          ChangeNotifierProvider(
+              create: (_) => TransactionProvider()..initialize()),
           ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ],
         child: const MyApp(),
