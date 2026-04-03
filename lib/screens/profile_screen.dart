@@ -35,6 +35,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
 
     return WillPopScope(
       onWillPop: () async {
@@ -42,7 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: IOSColors.systemBackground,
+          backgroundColor: systemBg,
           elevation: 0,
           title: Text(_titles[_currentIndex]),
           actions: [
@@ -58,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
                 child: CircleAvatar(
                   radius: 18,
-                  backgroundColor: IOSColors.primary.withValues(alpha: 0.1),
+                  backgroundColor: primaryColor.withValues(alpha: 0.1),
                   child: authProvider.userModel?.profileImageUrl != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(18),
@@ -68,17 +82,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             height: 36,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
+                              return Icon(
                                 CupertinoIcons.person_fill,
-                                color: IOSColors.primary,
+                                color: primaryColor,
                                 size: 24,
                               );
                             },
                           ),
                         )
-                      : const Icon(
+                      : Icon(
                           CupertinoIcons.person_fill,
-                          color: IOSColors.primary,
+                          color: primaryColor,
                           size: 24,
                         ),
                 ),
@@ -87,16 +101,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         body: _screens[_currentIndex],
-        backgroundColor: IOSColors.secondarySystemBackground,
+        backgroundColor: secondarySystemBg,
         bottomNavigationBar: Container(
           height: 80,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: IOSColors.systemBackground.withOpacity(0.95),
+            color: systemBg.withOpacity(0.95),
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -118,15 +132,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         floatingActionButton: _currentIndex == 0
             ? Container(
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [IOSColors.primary, IOSColors.primaryDark],
+                  gradient: LinearGradient(
+                    colors: [
+                      primaryColor,
+                      isDarkMode
+                          ? IOSDarkColors.primaryDark
+                          : IOSColors.primaryDark
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: IOSColors.primary.withValues(alpha: 0.4),
+                      color: primaryColor.withValues(alpha: 0.4),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -158,6 +177,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _currentIndex == index;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -169,9 +193,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? IOSColors.primary.withOpacity(0.12)
-              : Colors.transparent,
+          color:
+              isSelected ? primaryColor.withOpacity(0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -180,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               icon,
               size: isSelected ? 24 : 22,
-              color: isSelected ? IOSColors.primary : IOSColors.labelTertiary,
+              color: isSelected ? primaryColor : labelTertiary,
             ),
             if (isSelected) const SizedBox(width: 8),
             AnimatedSwitcher(
@@ -189,10 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? Text(
                       label,
                       key: ValueKey(label),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: IOSColors.primary,
+                        color: primaryColor,
                       ),
                     )
                   : const SizedBox.shrink(),
@@ -211,8 +234,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final userName =
-        authProvider.userModel?.displayName.split(' ').first ?? '';
+    final userName = authProvider.userModel?.displayName.split(' ').first ?? '';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(IOSSpacing.md),

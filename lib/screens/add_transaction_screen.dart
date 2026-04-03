@@ -3,16 +3,20 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/models/transaction.dart' as app;
 import 'package:ismart_shop/models/transaction_item.dart';
+import 'package:ismart_shop/models/product.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/transaction_provider.dart';
 import 'package:ismart_shop/providers/language_provider.dart';
 import 'package:ismart_shop/services/speech_service.dart';
 import 'package:ismart_shop/services/nlp_service.dart';
 import 'package:ismart_shop/services/translation_service.dart';
+import 'package:ismart_shop/services/local_database_service.dart';
+import 'package:ismart_shop/services/report_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
+import 'package:ismart_shop/widgets/app_bottom_nav.dart';
 import 'home_screen.dart';
-import 'transaction_review_screen.dart';
+import 'voice_recording_screen.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -28,7 +32,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _voiceStatusMessage = 'Tap to speak';
   int _listeningItemIndex = -1; // -1 means not listening for any specific item
 
-  int _currentIndex = 0;
   app.TransactionType _type = app.TransactionType.sale;
   List<TransactionItem> _items = [];
   DateTime _createdAt = DateTime.now();
@@ -36,6 +39,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _category = '';
   String _customerName = '';
   String _notes = '';
+  List<Product> _inventoryProducts = [];
+  bool _isLoadingProducts = false;
 
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
@@ -49,6 +54,74 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _addItem();
     // Initialize speech service
     _initializeSpeech();
+    // Load inventory products
+    _loadInventoryProducts();
+  }
+
+  Future<void> _loadInventoryProducts() async {
+    setState(() => _isLoadingProducts = true);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final userId = authProvider.userModel?.id;
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _inventoryProducts = [];
+          _isLoadingProducts = false;
+        });
+        return;
+      }
+
+      // Load products from local database
+      final localProducts = await LocalDatabaseService.getProducts(userId);
+
+      setState(() {
+        _inventoryProducts = localProducts
+            .map((local) => Product(
+                  id: local.firebaseId ?? local.id,
+                  name: local.name,
+                  description: local.description,
+                  categoryId: local.categoryId,
+                  categoryName: local.categoryName,
+                  unit: local.unit,
+                  sellingPrice: local.sellingPrice,
+                  costPrice: local.costPrice,
+                  stockQuantity: local.stockQuantity,
+                  lowStockThreshold: local.lowStockThreshold,
+                  imageUrl: local.imageUrl,
+                  userId: local.userId,
+                  createdAt: local.createdAt,
+                  updatedAt: local.updatedAt,
+                  isActive: local.isActive,
+                ))
+            .toList();
+        _isLoadingProducts = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading inventory products: $e');
+      setState(() => _isLoadingProducts = false);
+    }
+  }
+
+  void _showProductPicker(int itemIndex) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (dialogContext) => _ProductPickerSheet(
+        products: _inventoryProducts,
+        isLoading: _isLoadingProducts,
+        onSelect: (product) {
+          // Update the item with the selected product
+          final currentItem = _items[itemIndex];
+          final updatedItem = currentItem.copyWith(
+            itemName: product.name,
+            pricePerUnit: product.sellingPrice,
+            amount: product.sellingPrice * currentItem.quantity,
+          );
+          _updateItem(itemIndex, updatedItem);
+          Navigator.pop(dialogContext);
+        },
+      ),
+    );
   }
 
   Future<void> _initializeSpeech() async {
@@ -282,10 +355,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (_) => TransactionReviewScreen(
-          transcribedText: transcribedText,
-          transactionIntent: intent,
-        ),
+        builder: (_) => const VoiceRecordingScreen(),
       ),
     );
   }
@@ -453,21 +523,118 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Color _getTypeColor(app.TransactionType type) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     switch (type) {
       case app.TransactionType.sale:
         return IOSColors.saleColor;
       case app.TransactionType.expense:
         return IOSColors.expenseColor;
       case app.TransactionType.purchase:
-        return IOSColors.purchaseColor;
+        return isDarkMode
+            ? IOSDarkColors.purchaseColor
+            : IOSColors.purchaseColor;
+      case app.TransactionType.cashReceipt:
+        return isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
     }
   }
 
-  void _navigateToScreen(int index) {
-    Navigator.pushReplacement(
-      context,
-      CupertinoPageRoute(builder: (_) => const HomeScreen()),
+  /// Get transaction types excluding cashReceipt for the type selector
+  List<app.TransactionType> get _availableTypes {
+    return app.TransactionType.values
+        .where((type) => type != app.TransactionType.cashReceipt)
+        .toList();
+  }
+
+  /// Show receipt options bottom sheet
+  void _showReceiptOptions() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Receipt Options'),
+        message: const Text('Choose an action for this transaction'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _printReceipt();
+            },
+            child: const Text('Print Receipt (PDF)'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          isDestructiveAction: true,
+          child: const Text('Cancel'),
+        ),
+      ),
     );
+  }
+
+  /// Print receipt to PDF - saves transaction first, then generates receipt
+  Future<void> _printReceipt() async {
+    // Validate at least one item with name and valid amount
+    final validItems =
+        _items.where((item) => item.itemName.isNotEmpty && item.amount > 0);
+    if (validItems.isEmpty) {
+      _showErrorDialog('Please add at least one item with name and amount');
+      return;
+    }
+
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final transactionProvider = context.read<TransactionProvider>();
+
+      // Create the transaction
+      final transaction = app.Transaction.create(
+        type: _type,
+        items: validItems.toList(),
+        userId: authProvider.userModel?.id ?? '',
+        description: _descriptionController.text.trim(),
+        category: _categoryController.text.trim().isEmpty
+            ? null
+            : _categoryController.text.trim(),
+        customerName: _customerNameController.text.trim().isEmpty
+            ? null
+            : _customerNameController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
+      );
+
+      // Save the transaction first
+      await transactionProvider.addTransaction(transaction);
+      debugPrint('Transaction saved successfully: ${transaction.id}');
+
+      // Now print the receipt directly using the printing package
+      await ReportService.printReceipt(transaction);
+
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Receipt printed successfully'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+
+        // Navigate to home screen
+        Navigator.pushReplacement(
+          context,
+          CupertinoPageRoute(
+              builder: (_) => const HomeScreen(initialTabIndex: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -525,7 +692,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ),
                   const SizedBox(height: IOSSpacing.sm),
                   Row(
-                    children: app.TransactionType.values.map((type) {
+                    children: _availableTypes.map((type) {
                       final color = _getTypeColor(type);
                       final isSelected = _type == type;
                       return Expanded(
@@ -853,36 +1020,64 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
             ),
 
+            const SizedBox(height: IOSSpacing.md),
+
+            // Receipt Button
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _showReceiptOptions,
+              child: Container(
+                padding: const EdgeInsets.all(IOSSpacing.md),
+                decoration: BoxDecoration(
+                  color: IOSColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+                  border: Border.all(
+                    color: IOSColors.primary.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      CupertinoIcons.doc_text,
+                      color: IOSColors.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: IOSSpacing.sm),
+                    const Text(
+                      'Receipt',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: IOSColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: IOSSpacing.xs),
+                    Icon(
+                      CupertinoIcons.chevron_down,
+                      color: IOSColors.primary,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: IOSSpacing.xl),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        height: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: IOSColors.systemBackground.withOpacity(0.95),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+      bottomNavigationBar: AppBottomNav(
+        currentIndex: 1, // Start at Transactions tab
+        onNavigate: (index) {
+          // Navigate based on index, but don't allow adding new transaction from this screen
+          Navigator.pushReplacement(
+            context,
+            CupertinoPageRoute(
+              builder: (_) => HomeScreen(initialTabIndex: index),
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(0, CupertinoIcons.house, 'Home'),
-              _buildNavItem(1, CupertinoIcons.list_bullet, 'Transactions'),
-              _buildNavItem(2, CupertinoIcons.chart_bar, 'Reports'),
-              _buildNavItem(3, CupertinoIcons.settings, 'Settings'),
-            ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -927,6 +1122,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         TextSelection.collapsed(offset: item.itemName.length),
                 ),
               ),
+              // Inventory selection button
+              GestureDetector(
+                onTap: () => _showProductPicker(index),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: IOSColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+                    border: Border.all(
+                      color: IOSColors.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.cube_box,
+                    size: 18,
+                    color: IOSColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               // Voice input button for this item
               _buildVoiceInputButton(itemIndex: index, isCompact: true),
               if (_items.length > 1)
@@ -1135,42 +1350,429 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         return 'pieces';
     }
   }
+}
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    final isSelected = _currentIndex == index;
-    return GestureDetector(
-      onTap: () {
-        _navigateToScreen(index);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? IOSColors.primary.withOpacity(0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: isSelected ? 24 : 22,
-              color: isSelected ? IOSColors.primary : IOSColors.labelTertiary,
-            ),
-            if (isSelected) const SizedBox(width: 8),
-            if (isSelected)
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: IOSColors.primary,
-                ),
+// Product Picker Sheet Widget
+class _ProductPickerSheet extends StatefulWidget {
+  final List<Product> products;
+  final bool isLoading;
+  final Function(Product) onSelect;
+
+  const _ProductPickerSheet({
+    required this.products,
+    required this.isLoading,
+    required this.onSelect,
+  });
+
+  @override
+  State<_ProductPickerSheet> createState() => _ProductPickerSheetState();
+}
+
+class _ProductPickerSheetState extends State<_ProductPickerSheet> {
+  String _searchQuery = '';
+
+  List<Product> get _filteredProducts {
+    if (_searchQuery.isEmpty) {
+      return widget.products;
+    }
+    return widget.products
+        .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? IOSDarkColors.systemBackground
+            : IOSColors.systemBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Gradient header with handle bar
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  IOSColors.primary,
+                  IOSColors.primary.withOpacity(0.8),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(IOSSpacing.md),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 60),
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.cube_box_fill,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(width: IOSSpacing.sm),
+                          Text(
+                            'Select Product',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Search
+          Padding(
+            padding: const EdgeInsets.all(IOSSpacing.md),
+            child: CupertinoSearchTextField(
+              placeholder: 'Search products...',
+              placeholderStyle: TextStyle(
+                color: isDarkMode
+                    ? IOSDarkColors.labelTertiary
+                    : IOSColors.labelTertiary,
+              ),
+              style: TextStyle(
+                color: isDarkMode
+                    ? IOSDarkColors.labelPrimary
+                    : IOSColors.labelPrimary,
+              ),
+              onChanged: (value) {
+                setState(() => _searchQuery = value);
+              },
+            ),
+          ),
+          // Products list
+          Expanded(
+            child: widget.isLoading
+                ? const Center(child: CupertinoActivityIndicator())
+                : _filteredProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.cube_box,
+                              size: 56,
+                              color: isDarkMode
+                                  ? IOSDarkColors.labelTertiary
+                                  : IOSColors.labelTertiary,
+                            ),
+                            const SizedBox(height: IOSSpacing.md),
+                            Text(
+                              _searchQuery.isEmpty
+                                  ? 'No products in inventory'
+                                  : 'No products found',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: isDarkMode
+                                    ? IOSDarkColors.labelSecondary
+                                    : IOSColors.labelSecondary,
+                              ),
+                            ),
+                            if (_searchQuery.isEmpty) ...[
+                              const SizedBox(height: IOSSpacing.sm),
+                              Text(
+                                'Add products from Inventory first',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDarkMode
+                                      ? IOSDarkColors.labelTertiary
+                                      : IOSColors.labelTertiary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: IOSSpacing.md),
+                        itemCount: _filteredProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = _filteredProducts[index];
+                          return _ProductPickerItem(
+                            product: product,
+                            onTap: () => widget.onSelect(product),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductPickerItem extends StatelessWidget {
+  final Product product;
+  final VoidCallback onTap;
+
+  const _ProductPickerItem({
+    required this.product,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    // Determine stock status color
+    Color stockColor;
+    String stockStatus;
+    if (product.stockQuantity <= 0) {
+      stockColor = IOSColors.error;
+      stockStatus = 'Out of stock';
+    } else if (product.stockQuantity <= product.lowStockThreshold) {
+      stockColor = const Color(0xFFFF9500); // Orange for low stock
+      stockStatus = 'Low stock';
+    } else {
+      stockColor = const Color(0xFF34C759); // Green for in stock
+      stockStatus = 'In stock';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: IOSSpacing.sm),
+        decoration: BoxDecoration(
+          gradient: isDarkMode
+              ? LinearGradient(
+                  colors: [
+                    IOSDarkColors.secondarySystemBackground,
+                    IOSDarkColors.secondarySystemBackground.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : LinearGradient(
+                  colors: [
+                    Colors.white,
+                    Colors.white.withOpacity(0.95),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+          boxShadow: [
+            BoxShadow(
+              color: isDarkMode
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+          child: Container(
+            padding: const EdgeInsets.all(IOSSpacing.md),
+            child: Row(
+              children: [
+                // Modern product icon with gradient background
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        IOSColors.primary,
+                        IOSColors.primary.withOpacity(0.7),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+                    boxShadow: [
+                      BoxShadow(
+                        color: IOSColors.primary.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    CupertinoIcons.cube_box_fill,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: IOSSpacing.md),
+                // Product info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDarkMode
+                              ? IOSDarkColors.labelPrimary
+                              : IOSColors.labelPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      // Category chip
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: IOSColors.secondary.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          product.categoryName.isNotEmpty
+                              ? product.categoryName
+                              : 'Uncategorized',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: IOSColors.secondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Stock status badge
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: stockColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            stockStatus,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: stockColor,
+                            ),
+                          ),
+                          if (product.stockQuantity > 0) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '• ${product.stockQuantity.toStringAsFixed(0)} ${product.unit}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDarkMode
+                                    ? IOSDarkColors.labelSecondary
+                                    : IOSColors.labelSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Price container
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: IOSSpacing.md,
+                    vertical: IOSSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDarkMode
+                        ? IOSDarkColors.secondarySystemBackground
+                        : const Color(0xFFF2F2F7),
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'UGX ${product.sellingPrice.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: IOSColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'per ${product.unit}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDarkMode
+                              ? IOSDarkColors.labelSecondary
+                              : IOSColors.labelSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: IOSSpacing.sm),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 18,
+                  color: isDarkMode
+                      ? IOSDarkColors.labelTertiary
+                      : IOSColors.labelTertiary,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

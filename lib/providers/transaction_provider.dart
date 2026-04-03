@@ -178,14 +178,25 @@ class TransactionProvider with ChangeNotifier {
           .map((doc) => app.Transaction.fromFirestore(doc))
           .toList();
 
-      // Update local database with Firebase data
+      // Update local database with Firebase data (check for duplicates first)
       for (final transaction in firebaseTransactions) {
-        final localTransaction = LocalTransaction.fromTransaction(
-          transaction,
-          firebaseId: transaction.id,
-          syncStatus: SyncStatus.synced,
+        // Check if this transaction already exists locally
+        final existingTransactions = await LocalDatabaseService.getTransactions(
+          _auth!.currentUser!.uid,
         );
-        await LocalDatabaseService.insertTransaction(localTransaction);
+
+        final existsLocally = existingTransactions.any((local) =>
+            (local.firebaseId != null && local.firebaseId == transaction.id) ||
+            local.id == transaction.id);
+
+        if (!existsLocally) {
+          final localTransaction = LocalTransaction.fromTransaction(
+            transaction,
+            firebaseId: transaction.id,
+            syncStatus: SyncStatus.synced,
+          );
+          await LocalDatabaseService.insertTransaction(localTransaction);
+        }
       }
 
       // Reload from local database to get merged data
@@ -208,7 +219,8 @@ class TransactionProvider with ChangeNotifier {
     if (_auth?.currentUser == null) return;
 
     try {
-      _pendingSyncCount = await LocalDatabaseService.getUnsyncedCount(
+      _pendingSyncCount =
+          await LocalDatabaseService.getUnsyncedTransactionsCount(
         _auth!.currentUser!.uid,
       );
     } catch (e) {
@@ -340,7 +352,8 @@ class TransactionProvider with ChangeNotifier {
           .add(localTransaction.toTransaction().toFirestore());
 
       // Mark as synced in local database
-      await LocalDatabaseService.markAsSynced(localTransaction.id, docRef.id);
+      await LocalDatabaseService.markTransactionSynced(
+          localTransaction.id, docRef.id);
 
       // Update the transaction in the list with the Firebase ID
       final index =
@@ -359,7 +372,7 @@ class TransactionProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // Mark as failed
-      await LocalDatabaseService.markAsFailed(localTransaction.id);
+      await LocalDatabaseService.markTransactionFailed(localTransaction.id);
       debugPrint('Failed to sync transaction: $e');
     }
   }
@@ -440,9 +453,11 @@ class TransactionProvider with ChangeNotifier {
             .update(transaction.toFirestore());
 
         // Mark as synced
-        await LocalDatabaseService.markAsSynced(transaction.id, transaction.id);
-        _pendingSyncCount = await LocalDatabaseService.getUnsyncedCount(
-            _auth!.currentUser!.uid);
+        await LocalDatabaseService.markTransactionSynced(
+            transaction.id, transaction.id);
+        _pendingSyncCount =
+            await LocalDatabaseService.getUnsyncedTransactionsCount(
+                _auth!.currentUser!.uid);
       } catch (e) {
         debugPrint('Error updating transaction in Firebase: $e');
       }

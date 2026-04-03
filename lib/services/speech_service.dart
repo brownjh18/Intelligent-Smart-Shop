@@ -11,6 +11,8 @@ class SpeechService {
   String _lastStatus = '';
   String _lastError = '';
   bool _hasStartedListening = false;
+  String _currentLocaleId = '';
+  bool _isInitialized = false;
 
   bool get isAvailable => _isAvailable;
   bool get isListening => _isListening;
@@ -19,8 +21,15 @@ class SpeechService {
   String get lastStatus => _lastStatus;
   String get lastError => _lastError;
 
+  /// Check if speech recognition is available on this device
   Future<bool> initialize() async {
     debugPrint('SpeechService: Initializing speech recognition...');
+
+    // If already initialized, just return the current state
+    if (_isInitialized && _isAvailable) {
+      debugPrint('SpeechService: Already initialized, returning current state');
+      return _isAvailable;
+    }
 
     try {
       _isAvailable = await _speechToText.initialize(
@@ -42,14 +51,14 @@ class SpeechService {
           debugPrint('Speech error: ${error.errorMsg}');
           _isListening = false;
         },
-        debugLogging: true,
+        debugLogging: false,
       );
 
+      _isInitialized = true;
       debugPrint('SpeechService: Initialization result: $_isAvailable');
 
-      // Log more details about why initialization might have failed
+      // Log available locales
       if (!_isAvailable) {
-        debugPrint('SpeechService: Available locales would be checked');
         try {
           final locales = await _speechToText.locales();
           debugPrint('SpeechService: Available locales: ${locales.length}');
@@ -65,6 +74,7 @@ class SpeechService {
     } catch (e) {
       debugPrint('SpeechService: Initialization exception: $e');
       _isAvailable = false;
+      _isInitialized = true;
       return false;
     }
   }
@@ -86,16 +96,63 @@ class SpeechService {
   }
 
   Future<bool> startListening({required String localeId}) async {
-    debugPrint('SpeechService: Starting listening with locale: $localeId');
+    debugPrint(
+        'SpeechService: Starting listening with requested locale: $localeId');
+    _currentLocaleId = localeId;
 
     // Try to initialize if not available
-    if (!_isAvailable) {
+    if (!_isAvailable || !_isInitialized) {
       debugPrint('SpeechService: Not available, attempting to initialize...');
       final initialized = await initialize();
       if (!initialized) {
         debugPrint('SpeechService: Failed to initialize speech - $_lastError');
         _lastError = 'Speech recognition not available on this device';
         return false;
+      }
+    }
+
+    // If still not available after initialization attempt
+    if (!_isAvailable) {
+      debugPrint('SpeechService: Not available after initialization');
+      _lastError = 'Speech recognition is not available';
+      return false;
+    }
+
+    // Try to get the best available locale
+    String actualLocaleId = localeId;
+
+    // If the requested locale is 'lg' (Luganda) or 'en_US', try to find a matching one
+    if (localeId == 'lg' || localeId == 'en_US') {
+      try {
+        final locales = await _speechToText.locales();
+
+        // For Luganda, try to find Luganda locale
+        if (localeId == 'lg') {
+          final lugandaLocale = locales.firstWhere(
+            (l) =>
+                l.localeId.startsWith('lg') ||
+                l.name.toLowerCase().contains('luganda'),
+            orElse: () => locales.first,
+          );
+          actualLocaleId = lugandaLocale.localeId;
+          debugPrint('SpeechService: Using Luganda locale: $actualLocaleId');
+        }
+        // For English, try to find en-US or en-GB
+        else if (localeId == 'en_US') {
+          final englishLocale = locales.firstWhere(
+            (l) =>
+                l.localeId.startsWith('en') &&
+                (l.localeId.contains('US') || l.localeId.contains('GB')),
+            orElse: () => locales.firstWhere(
+              (l) => l.localeId.startsWith('en'),
+              orElse: () => locales.first,
+            ),
+          );
+          actualLocaleId = englishLocale.localeId;
+          debugPrint('SpeechService: Using English locale: $actualLocaleId');
+        }
+      } catch (e) {
+        debugPrint('SpeechService: Error getting locales: $e');
       }
     }
 
@@ -107,82 +164,48 @@ class SpeechService {
         _hasStartedListening = false;
         _lastError = '';
 
-        // Try listening - use default locale if specific locale fails
-        bool success = false;
-        bool attemptedWithLocale = false;
+        // Use the new SpeechListenOptions API
+        final listenOptions = SpeechListenOptions(
+          listenMode: ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: false,
+        );
 
-        try {
-          debugPrint(
-              'SpeechService: Attempting to start listening with locale: $localeId');
+        debugPrint(
+            'SpeechService: Attempting to start listening with locale: $actualLocaleId');
 
-          // First try with the specified locale
-          success = await _speechToText.listen(
-            onResult: (SpeechRecognitionResult result) {
-              debugPrint(
-                  'SpeechService: Got result - "${result.recognizedWords}", final: ${result.finalResult}');
-              _text = result.recognizedWords.isNotEmpty
-                  ? result.recognizedWords
-                  : '';
-              _confidence = result.confidence;
+        // Start listening with localeId parameter
+        await _speechToText.listen(
+          onResult: (SpeechRecognitionResult result) {
+            debugPrint(
+                'SpeechService: Got result - "${result.recognizedWords}", final: ${result.finalResult}');
+            _text =
+                result.recognizedWords.isNotEmpty ? result.recognizedWords : '';
+            _confidence = result.confidence;
 
-              if (result.finalResult) {
-                _isListening = false;
-                _lastStatus = 'done';
-              }
-            },
-            localeId: localeId,
-            listenFor: const Duration(seconds: 30),
-            pauseFor: const Duration(seconds: 3),
-            partialResults: true,
-            cancelOnError: false,
-            listenMode: ListenMode.dictation,
-          );
+            if (result.finalResult) {
+              _isListening = false;
+              _lastStatus = 'done';
+              debugPrint('SpeechService: Final result received, stopping');
+            }
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          localeId: actualLocaleId,
+          listenOptions: listenOptions,
+        );
 
-          debugPrint('SpeechService: listen() with locale returned: $success');
-          attemptedWithLocale = true;
-        } catch (e) {
-          debugPrint('SpeechService: First listen attempt error: $e');
-        }
+        debugPrint('SpeechService: listen() called successfully');
 
-        // If first attempt failed or returned false, try with default locale
-        if (!success || !attemptedWithLocale) {
-          try {
-            debugPrint('SpeechService: Trying with default locale...');
-            success = await _speechToText.listen(
-              onResult: (SpeechRecognitionResult result) {
-                debugPrint(
-                    'SpeechService: Got result - "${result.recognizedWords}", final: ${result.finalResult}');
-                _text = result.recognizedWords.isNotEmpty
-                    ? result.recognizedWords
-                    : '';
-                _confidence = result.confidence;
-
-                if (result.finalResult) {
-                  _isListening = false;
-                  _lastStatus = 'done';
-                }
-              },
-              listenFor: const Duration(seconds: 30),
-              pauseFor: const Duration(seconds: 3),
-              partialResults: true,
-              cancelOnError: false,
-              listenMode: ListenMode.dictation,
-            );
-            debugPrint('SpeechService: Second listen() returned: $success');
-          } catch (e2) {
-            debugPrint('SpeechService: Second listen attempt error: $e2');
-          }
-        }
-
-        // Check if listening actually started (even if listen() returned false)
-        // Give it a moment to start and check the status
-        // We need to wait a bit longer and also handle the case where callbacks fire after we check
-        for (int i = 0; i < 3; i++) {
+        // Wait for the listening to start and check status
+        // Give it time to initialize and check the status callback
+        for (int i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 300));
 
           debugPrint(
               'SpeechService: Check attempt $i - status: $_lastStatus, isListening: $_isListening, hasStarted: $_hasStartedListening');
 
+          // If we've received the listening status, consider it a success
           if (_hasStartedListening ||
               _lastStatus == 'listening' ||
               _isListening) {
@@ -193,17 +216,59 @@ class SpeechService {
           }
         }
 
-        // If we still haven't started, report failure
+        // If status shows listening but we didn't detect it, check once more
+        if (_lastStatus == 'listening') {
+          _isListening = true;
+          _hasStartedListening = true;
+          debugPrint('SpeechService: Detected listening via status check');
+          return true;
+        }
+
+        // If we still haven't started, report failure but don't give up - try again
+        debugPrint('SpeechService: First attempt failed, retrying...');
+
+        // Stop and try again
+        try {
+          await _speechToText.stop();
+        } catch (e) {
+          debugPrint('SpeechService: Error on stop: $e');
+        }
+
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Second attempt
+        _lastStatus = 'starting';
+        _hasStartedListening = false;
+
+        await _speechToText.listen(
+          onResult: (SpeechRecognitionResult result) {
+            _text =
+                result.recognizedWords.isNotEmpty ? result.recognizedWords : '';
+            _confidence = result.confidence;
+            if (result.finalResult) {
+              _isListening = false;
+              _lastStatus = 'done';
+            }
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          localeId: actualLocaleId,
+          listenOptions: listenOptions,
+        );
+
+        for (int i = 0; i < 5; i++) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (_hasStartedListening ||
+              _lastStatus == 'listening' ||
+              _isListening) {
+            _isListening = true;
+            return true;
+          }
+        }
+
+        // If still failing, report failure
         debugPrint(
             'SpeechService: Failed to start listening - status: $_lastStatus');
-
-        // Provide more helpful error messages
-        if (_lastStatus == 'starting' || _lastStatus.isEmpty) {
-          _lastError = 'Speech recognition failed to start. Please try again.';
-        } else if (_lastError.isEmpty) {
-          _lastError =
-              'Failed to start speech recognition. Status: $_lastStatus';
-        }
         return false;
       } catch (e) {
         debugPrint('SpeechService: Exception during listen: $e');
@@ -238,6 +303,98 @@ class SpeechService {
     _isListening = false;
   }
 
-  static String get lugandaLocale => 'lg';
+  /// Force reinitialize the speech service - useful when returning to the page
+  /// or when starting a new recording session
+  Future<bool> forceReinitialize() async {
+    debugPrint('SpeechService: Force reinitializing...');
+
+    // Stop any ongoing operation first
+    try {
+      await _speechToText.stop();
+    } catch (e) {
+      debugPrint('SpeechService: Error stopping before reinit: $e');
+    }
+
+    // Reset our tracking state completely
+    _isListening = false;
+    _text = '';
+    _confidence = 0;
+    _lastStatus = '';
+    _lastError = '';
+    _hasStartedListening = false;
+    _isInitialized = false;
+    _isAvailable = false;
+
+    // Wait a bit for any pending operations to complete
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Now initialize fresh
+    return await initialize();
+  }
+
+  /// Stop any ongoing listening and reset to a clean state
+  Future<void> stopAndReset() async {
+    debugPrint('SpeechService: Stopping and resetting...');
+    try {
+      await _speechToText.stop();
+    } catch (e) {
+      debugPrint('SpeechService: Error on stop: $e');
+    }
+
+    // Reset all state
+    _isListening = false;
+    _text = '';
+    _confidence = 0;
+    _lastStatus = '';
+    _lastError = '';
+    _hasStartedListening = false;
+  }
+
   static String get englishLocale => 'en_US';
+
+  /// Get the best available locale for speech recognition
+  static Future<String> getBestLocale(String preferredLocale) async {
+    try {
+      final speechToText = SpeechToText();
+      final isAvailable = await speechToText.initialize();
+
+      if (isAvailable) {
+        final locales = await speechToText.locales();
+
+        // Try to find a matching locale
+        if (preferredLocale == 'lg') {
+          // Try to find Luganda
+          final lugandaLocale = locales.firstWhere(
+            (l) =>
+                l.localeId.startsWith('lg') ||
+                l.name.toLowerCase().contains('luganda'),
+            orElse: () => locales.first,
+          );
+          await speechToText.stop();
+          return lugandaLocale.localeId;
+        } else if (preferredLocale == 'en_US') {
+          // Try to find English (US or GB)
+          final englishLocale = locales.firstWhere(
+            (l) =>
+                l.localeId.startsWith('en') &&
+                (l.localeId.contains('US') || l.localeId.contains('GB')),
+            orElse: () => locales.firstWhere(
+              (l) => l.localeId.startsWith('en'),
+              orElse: () => locales.first,
+            ),
+          );
+          await speechToText.stop();
+          return englishLocale.localeId;
+        }
+
+        await speechToText.stop();
+        return locales.first.localeId;
+      }
+    } catch (e) {
+      debugPrint('SpeechService: Error getting best locale: $e');
+    }
+
+    // Return default based on preference
+    return preferredLocale == 'lg' ? 'en_US' : preferredLocale;
+  }
 }

@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/language_provider.dart';
+import 'package:ismart_shop/providers/theme_provider.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/services/firestore_setup.dart';
+import 'package:ismart_shop/services/openai_parser_service.dart';
 import 'profile_edit_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -22,15 +24,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final languageProvider = context.watch<LanguageProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: IOSColors.secondarySystemBackground,
+      backgroundColor: isDarkMode
+          ? IOSDarkColors.secondarySystemBackground
+          : IOSColors.secondarySystemBackground,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Account Section
-            IOSSectionHeader(title: 'Account'),
+            const IOSSectionHeader(title: 'Account'),
             IOSCard(
               child: Column(
                 children: [
@@ -73,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: IOSSpacing.lg),
             // Preferences Section
-            IOSSectionHeader(title: 'Preferences'),
+            const IOSSectionHeader(title: 'Preferences'),
             IOSCard(
               child: Column(
                 children: [
@@ -89,6 +95,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   _buildDivider(),
+                  _buildSettingsSwitch(
+                    CupertinoIcons.moon_fill,
+                    'Dark Mode',
+                    'Switch between light and dark theme',
+                    themeProvider.isDarkMode,
+                    (value) {
+                      themeProvider.setDarkMode(value);
+                    },
+                  ),
+                  _buildDivider(),
                   _buildSettingsTile(
                     CupertinoIcons.info_circle_fill,
                     'App Version',
@@ -99,8 +115,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: IOSSpacing.lg),
+            // AI Configuration Section
+            const IOSSectionHeader(title: 'AI Configuration'),
+            IOSCard(
+              child: Column(
+                children: [
+                  _buildSettingsTileWithAction(
+                    CupertinoIcons.sparkles,
+                    'OpenAI API Key',
+                    OpenAIParserService.isApiKeyConfigured
+                        ? 'API key configured'
+                        : 'Not configured - using local AI',
+                    CupertinoIcons.chevron_right,
+                    () {
+                      _showApiKeyDialog();
+                    },
+                  ),
+                  _buildDivider(),
+                  _buildSettingsTile(
+                    CupertinoIcons.info_circle_fill,
+                    'AI Parsing',
+                    'Uses OpenAI GPT for better accuracy',
+                    null,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: IOSSpacing.lg),
             // Help Section
-            IOSSectionHeader(title: 'Help & Support'),
+            const IOSSectionHeader(title: 'Help & Support'),
             IOSCard(
               child: Column(
                 children: [
@@ -178,6 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String subtitle,
     Widget? trailing,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: IOSSpacing.sm),
       child: Row(
@@ -185,10 +229,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: IOSColors.primary.withOpacity(0.15),
+              color: (isDarkMode ? IOSDarkColors.primary : IOSColors.primary)
+                  .withOpacity(0.15),
               borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
             ),
-            child: Icon(icon, color: IOSColors.primary, size: 20),
+            child: Icon(icon,
+                color: isDarkMode ? IOSDarkColors.primary : IOSColors.primary,
+                size: 20),
           ),
           const SizedBox(width: IOSSpacing.md),
           Expanded(
@@ -197,17 +244,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: IOSColors.labelPrimary,
+                    color: isDarkMode
+                        ? IOSDarkColors.labelPrimary
+                        : IOSColors.labelPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: IOSColors.labelSecondary,
+                    color: isDarkMode
+                        ? IOSDarkColors.labelSecondary
+                        : IOSColors.labelSecondary,
                   ),
                 ),
               ],
@@ -227,6 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     VoidCallback onTap, {
     Widget? trailing,
   }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Padding(
@@ -236,10 +288,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: IOSColors.primary.withOpacity(0.15),
+                color: (isDarkMode ? IOSDarkColors.primary : IOSColors.primary)
+                    .withOpacity(0.15),
                 borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
               ),
-              child: Icon(icon, color: IOSColors.primary, size: 20),
+              child: Icon(icon,
+                  color: isDarkMode ? IOSDarkColors.primary : IOSColors.primary,
+                  size: 20),
             ),
             const SizedBox(width: IOSSpacing.md),
             Expanded(
@@ -248,17 +303,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: IOSColors.labelPrimary,
+                      color: isDarkMode
+                          ? IOSDarkColors.labelPrimary
+                          : IOSColors.labelPrimary,
                     ),
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: IOSColors.labelSecondary,
+                      color: isDarkMode
+                          ? IOSDarkColors.labelSecondary
+                          : IOSColors.labelSecondary,
                     ),
                   ),
                 ],
@@ -266,7 +325,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             if (trailing != null) trailing,
             if (trailing == null)
-              Icon(actionIcon, color: IOSColors.labelTertiary, size: 16),
+              Icon(actionIcon,
+                  color: isDarkMode
+                      ? IOSDarkColors.labelTertiary
+                      : IOSColors.labelTertiary,
+                  size: 16),
           ],
         ),
       ),
@@ -274,13 +337,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProfileImage(String? imageUrl) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: IOSColors.labelQuaternary,
+          color: isDarkMode
+              ? IOSDarkColors.labelQuaternary
+              : IOSColors.labelQuaternary,
           width: 1,
         ),
       ),
@@ -302,17 +368,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildPlaceholderIcon() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 36,
       height: 36,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: IOSColors.tertiarySystemBackground,
+        color: isDarkMode
+            ? IOSDarkColors.tertiarySystemBackground
+            : IOSColors.tertiarySystemBackground,
       ),
-      child: const Icon(
+      child: Icon(
         CupertinoIcons.person_fill,
         size: 20,
-        color: IOSColors.labelTertiary,
+        color:
+            isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary,
       ),
     );
   }
@@ -324,6 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool value,
     ValueChanged<bool> onChanged,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: IOSSpacing.sm),
       child: Row(
@@ -331,10 +402,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: IOSColors.primary.withOpacity(0.15),
+              color: (isDarkMode ? IOSDarkColors.primary : IOSColors.primary)
+                  .withOpacity(0.15),
               borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
             ),
-            child: Icon(icon, color: IOSColors.primary, size: 20),
+            child: Icon(icon,
+                color: isDarkMode ? IOSDarkColors.primary : IOSColors.primary,
+                size: 20),
           ),
           const SizedBox(width: IOSSpacing.md),
           Expanded(
@@ -343,17 +417,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: IOSColors.labelPrimary,
+                    color: isDarkMode
+                        ? IOSDarkColors.labelPrimary
+                        : IOSColors.labelPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: IOSColors.labelSecondary,
+                    color: isDarkMode
+                        ? IOSDarkColors.labelSecondary
+                        : IOSColors.labelSecondary,
                   ),
                 ),
               ],
@@ -362,7 +440,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CupertinoSwitch(
             value: value,
             onChanged: onChanged,
-            activeColor: IOSColors.primary,
+            activeTrackColor:
+                isDarkMode ? IOSDarkColors.primary : IOSColors.primary,
           ),
         ],
       ),
@@ -370,8 +449,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildDivider() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Divider(
-      color: IOSColors.labelQuaternary.withOpacity(0.5),
+      color: (isDarkMode
+              ? IOSDarkColors.labelQuaternary
+              : IOSColors.labelQuaternary)
+          .withOpacity(0.5),
       height: 1,
     );
   }
@@ -384,9 +467,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => Container(
         height: 200,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: IOSColors.systemBackground,
-          borderRadius: const BorderRadius.vertical(
+          borderRadius: BorderRadius.vertical(
             top: Radius.circular(IOSBorderRadius.large),
           ),
         ),
@@ -432,11 +515,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('How to Use iSmart Shop'),
-        content: SingleChildScrollView(
+        content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: const [
+            children: [
               Text(
                 'Recording Transactions',
                 style: TextStyle(
@@ -513,6 +596,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Firestore collections have been created. '
           'Your transactions will now be saved permanently!',
         ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showApiKeyDialog() {
+    final TextEditingController apiKeyController = TextEditingController();
+    apiKeyController.text = OpenAIParserService.apiKey;
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('OpenAI API Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: IOSSpacing.sm),
+            const Text(
+              'Enter your OpenAI API key to enable AI-powered transaction parsing. '
+              'You can get an API key from platform.openai.com',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: IOSSpacing.md),
+            CupertinoTextField(
+              controller: apiKeyController,
+              placeholder: 'sk-...',
+              obscureText: true,
+              padding: const EdgeInsets.all(IOSSpacing.md),
+              decoration: BoxDecoration(
+                color: IOSColors.systemBackground,
+                borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+                border: Border.all(
+                  color: IOSColors.labelQuaternary.withOpacity(0.3),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () async {
+              final apiKey = apiKeyController.text.trim();
+              if (apiKey.isNotEmpty) {
+                final success = await OpenAIParserService.saveApiKey(apiKey);
+                if (success) {
+                  setState(() {});
+                  Navigator.pop(context);
+                  _showSuccessDialog('API key saved successfully!');
+                } else {
+                  Navigator.pop(context);
+                  _showErrorDialog('Failed to save API key. Please try again.');
+                }
+              } else {
+                Navigator.pop(context);
+                _showErrorDialog('Please enter a valid API key.');
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Success'),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),

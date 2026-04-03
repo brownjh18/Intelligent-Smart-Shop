@@ -32,7 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
   }
@@ -111,19 +111,32 @@ class _RegisterScreenState extends State<RegisterScreen>
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final successColor = isDarkMode ? IOSDarkColors.success : IOSColors.success;
 
     return Scaffold(
-      backgroundColor: IOSColors.systemBackground,
+      backgroundColor: isDarkMode
+          ? IOSDarkColors.systemBackground
+          : IOSColors.systemBackground,
       appBar: AppBar(
-        backgroundColor: IOSColors.systemBackground,
+        backgroundColor: isDarkMode
+            ? IOSDarkColors.systemBackground
+            : IOSColors.systemBackground,
         elevation: 0,
         leading: CupertinoButton(
           onPressed: () {
             Navigator.pop(context);
           },
-          child: const Icon(
+          child: Icon(
             CupertinoIcons.back,
-            color: IOSColors.primary,
+            color: primaryColor,
           ),
         ),
       ),
@@ -151,27 +164,28 @@ class _RegisterScreenState extends State<RegisterScreen>
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: IOSColors.primary.withValues(alpha: 0.1),
+                      color: primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(IOSBorderRadius.xl),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.store,
                       size: 40,
-                      color: IOSColors.primary,
+                      color: primaryColor,
                     ),
                   ),
                 ),
                 const SizedBox(height: IOSSpacing.lg),
                 // Title
-                const Text(
+                Text(
                   'Create Account',
-                  style: IOSTextStyles.title1,
+                  style: IOSTextStyles.title1.copyWith(color: labelPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: IOSSpacing.xs),
-                const Text(
+                Text(
                   'Sign up to get started',
-                  style: IOSTextStyles.subheadline,
+                  style:
+                      IOSTextStyles.subheadline.copyWith(color: labelSecondary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: IOSSpacing.xxl),
@@ -184,8 +198,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   onSubmitted: (_) {
                     _emailFocusNode.requestFocus();
                   },
-                  prefix: const Icon(CupertinoIcons.person_fill,
-                      color: IOSColors.labelTertiary),
+                  prefix:
+                      Icon(CupertinoIcons.person_fill, color: labelTertiary),
                 ),
                 const SizedBox(height: IOSSpacing.md),
                 // Email field
@@ -198,8 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   onSubmitted: (_) {
                     _passwordFocusNode.requestFocus();
                   },
-                  prefix: const Icon(CupertinoIcons.mail,
-                      color: IOSColors.labelTertiary),
+                  prefix: Icon(CupertinoIcons.mail, color: labelTertiary),
                 ),
                 const SizedBox(height: IOSSpacing.md),
                 // Password field
@@ -212,8 +225,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   onSubmitted: (_) {
                     _confirmPasswordFocusNode.requestFocus();
                   },
-                  prefix: const Icon(CupertinoIcons.lock_fill,
-                      color: IOSColors.labelTertiary),
+                  prefix: Icon(CupertinoIcons.lock_fill, color: labelTertiary),
                   suffix: GestureDetector(
                     onTap: () {
                       setState(() {
@@ -224,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       _obscurePassword
                           ? CupertinoIcons.eye_slash
                           : CupertinoIcons.eye,
-                      color: IOSColors.labelTertiary,
+                      color: labelTertiary,
                     ),
                   ),
                 ),
@@ -237,8 +249,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   obscureText: _obscureConfirmPassword,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _handleRegister(),
-                  prefix: const Icon(CupertinoIcons.lock_fill,
-                      color: IOSColors.labelTertiary),
+                  prefix: Icon(CupertinoIcons.lock_fill, color: labelTertiary),
                   suffix: GestureDetector(
                     onTap: () {
                       setState(() {
@@ -249,7 +260,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       _obscureConfirmPassword
                           ? CupertinoIcons.eye_slash
                           : CupertinoIcons.eye,
-                      color: IOSColors.labelTertiary,
+                      color: labelTertiary,
                     ),
                   ),
                 ),
@@ -277,7 +288,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                                     opacity: successOpacity.clamp(0.0, 1.0),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: IOSColors.success,
+                                        color: successColor,
                                         borderRadius: BorderRadius.circular(
                                             IOSBorderRadius.medium),
                                       ),
@@ -337,17 +348,17 @@ class _RegisterScreenState extends State<RegisterScreen>
                     child: RichText(
                       text: TextSpan(
                         text: 'Already have an account? ',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          color: IOSColors.labelSecondary,
+                          color: labelSecondary,
                         ),
                         children: [
                           TextSpan(
                             text: 'Sign In',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: IOSColors.primary,
+                              color: primaryColor,
                             ),
                           ),
                         ],

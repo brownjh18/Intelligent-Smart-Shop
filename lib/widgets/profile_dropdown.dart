@@ -28,6 +28,17 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
 
   void _showDropdownMenu(BuildContext context) {
     final authProvider = context.read<AuthProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final errorColor = isDarkMode ? IOSDarkColors.error : IOSColors.error;
+
     final RenderBox renderBox =
         _dropdownKey.currentContext?.findRenderObject() as RenderBox;
     final Offset offset = renderBox.localToGlobal(Offset.zero);
@@ -44,7 +55,7 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      color: IOSColors.systemBackground,
+      color: systemBg,
       elevation: 8,
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
@@ -56,17 +67,17 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
               children: [
                 Text(
                   authProvider.userModel?.displayName ?? 'User',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: IOSColors.labelPrimary,
+                    color: labelPrimary,
                   ),
                 ),
                 Text(
                   authProvider.userModel?.email ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: IOSColors.labelSecondary,
+                    color: labelSecondary,
                   ),
                 ),
               ],
@@ -79,6 +90,7 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
           child: _buildMenuItem(
             CupertinoIcons.person_fill,
             'Profile',
+            isDarkMode: isDarkMode,
           ),
         ),
         PopupMenuItem<String>(
@@ -86,6 +98,7 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
           child: _buildMenuItem(
             CupertinoIcons.gear,
             'Settings',
+            isDarkMode: isDarkMode,
           ),
         ),
         const PopupMenuDivider(height: 1),
@@ -95,6 +108,7 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
             CupertinoIcons.arrow_right_square_fill,
             'Logout',
             isDestructive: true,
+            isDarkMode: isDarkMode,
           ),
         ),
       ],
@@ -110,20 +124,25 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
   }
 
   Widget _buildMenuItem(IconData icon, String text,
-      {bool isDestructive = false}) {
+      {bool isDestructive = false, bool isDarkMode = false}) {
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final errorColor = isDarkMode ? IOSDarkColors.error : IOSColors.error;
+
     return Row(
       children: [
         Icon(
           icon,
           size: 20,
-          color: isDestructive ? IOSColors.error : IOSColors.primary,
+          color: isDestructive ? errorColor : primaryColor,
         ),
         const SizedBox(width: 12),
         Text(
           text,
           style: TextStyle(
             fontSize: 16,
-            color: isDestructive ? IOSColors.error : IOSColors.labelPrimary,
+            color: isDestructive ? errorColor : labelPrimary,
           ),
         ),
       ],
@@ -167,6 +186,8 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final hasProfileImage = authProvider.userModel?.profileImageUrl != null;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
 
     return GestureDetector(
       key: _dropdownKey,
@@ -174,7 +195,7 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: IOSColors.primary.withOpacity(0.1),
+          color: primaryColor.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
         child: hasProfileImage
@@ -186,17 +207,17 @@ class _ProfileDropdownState extends State<ProfileDropdown> {
                   height: 32,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
+                    return Icon(
                       CupertinoIcons.person_fill,
-                      color: IOSColors.primary,
+                      color: primaryColor,
                       size: 28,
                     );
                   },
                 ),
               )
-            : const Icon(
+            : Icon(
                 CupertinoIcons.person_fill,
-                color: IOSColors.primary,
+                color: primaryColor,
                 size: 28,
               ),
       ),

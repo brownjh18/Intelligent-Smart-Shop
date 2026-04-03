@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/models/transaction.dart' as app;
 import 'package:ismart_shop/providers/transaction_provider.dart';
+import 'package:ismart_shop/services/report_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
-import 'transaction_review_screen.dart';
 import 'transaction_edit_screen.dart';
 
 class TransactionsListScreen extends StatefulWidget {
@@ -54,9 +54,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
       context: context,
       builder: (context) => Container(
         height: 300,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: IOSColors.systemBackground,
-          borderRadius: const BorderRadius.vertical(
+          borderRadius: BorderRadius.vertical(
             top: Radius.circular(IOSBorderRadius.large),
           ),
         ),
@@ -110,6 +110,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
   @override
   Widget build(BuildContext context) {
     final transactionProvider = context.watch<TransactionProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     List<app.Transaction> filteredTransactions =
         transactionProvider.transactions.cast<app.Transaction>();
@@ -141,13 +142,17 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     }
 
     return Scaffold(
-      backgroundColor: IOSColors.secondarySystemBackground,
+      backgroundColor: isDarkMode
+          ? IOSDarkColors.secondarySystemBackground
+          : IOSColors.secondarySystemBackground,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Filter Section
           Container(
-            color: IOSColors.systemBackground,
+            color: isDarkMode
+                ? IOSDarkColors.systemBackground
+                : IOSColors.systemBackground,
             padding: const EdgeInsets.symmetric(
               horizontal: IOSSpacing.md,
               vertical: IOSSpacing.sm,
@@ -215,14 +220,23 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: _selectedDate != null
-                                ? IOSColors.primary.withValues(alpha: 0.1)
-                                : IOSColors.secondarySystemBackground,
+                                ? (isDarkMode
+                                        ? IOSDarkColors.primary
+                                        : IOSColors.primary)
+                                    .withValues(alpha: 0.1)
+                                : isDarkMode
+                                    ? IOSDarkColors.secondarySystemBackground
+                                    : IOSColors.secondarySystemBackground,
                             borderRadius:
                                 BorderRadius.circular(IOSBorderRadius.circular),
                             border: Border.all(
                               color: _selectedDate != null
-                                  ? IOSColors.primary
-                                  : IOSColors.labelQuaternary,
+                                  ? (isDarkMode
+                                      ? IOSDarkColors.primary
+                                      : IOSColors.primary)
+                                  : (isDarkMode
+                                      ? IOSDarkColors.labelQuaternary
+                                      : IOSColors.labelQuaternary),
                             ),
                           ),
                           child: Row(
@@ -232,8 +246,12 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                 CupertinoIcons.calendar,
                                 size: 14,
                                 color: _selectedDate != null
-                                    ? IOSColors.primary
-                                    : IOSColors.labelSecondary,
+                                    ? (isDarkMode
+                                        ? IOSDarkColors.primary
+                                        : IOSColors.primary)
+                                    : (isDarkMode
+                                        ? IOSDarkColors.labelSecondary
+                                        : IOSColors.labelSecondary),
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -246,8 +264,12 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                       ? FontWeight.w600
                                       : FontWeight.w500,
                                   color: _selectedDate != null
-                                      ? IOSColors.primary
-                                      : IOSColors.labelSecondary,
+                                      ? (isDarkMode
+                                          ? IOSDarkColors.primary
+                                          : IOSColors.primary)
+                                      : (isDarkMode
+                                          ? IOSDarkColors.labelSecondary
+                                          : IOSColors.labelSecondary),
                                 ),
                               ),
                             ],
@@ -269,23 +291,30 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                           vertical: IOSSpacing.xs,
                         ),
                         decoration: BoxDecoration(
-                          color: IOSColors.primary.withValues(alpha: 0.1),
+                          color: (isDarkMode
+                                  ? IOSDarkColors.primary
+                                  : IOSColors.primary)
+                              .withValues(alpha: 0.1),
                           borderRadius:
                               BorderRadius.circular(IOSBorderRadius.small),
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               CupertinoIcons.calendar,
-                              color: IOSColors.primary,
+                              color: isDarkMode
+                                  ? IOSDarkColors.primary
+                                  : IOSColors.primary,
                               size: 14,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               'Filtered: ${_formatDate(_selectedDate!)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: IOSColors.primary,
+                                color: isDarkMode
+                                    ? IOSDarkColors.primary
+                                    : IOSColors.primary,
                                 fontSize: 13,
                               ),
                             ),
@@ -298,12 +327,14 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                             _selectedDate = null;
                           });
                         },
-                        child: const Text(
+                        child: Text(
                           'Clear',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: IOSColors.error,
+                            color: isDarkMode
+                                ? IOSDarkColors.error
+                                : IOSColors.error,
                           ),
                         ),
                       ),
@@ -319,7 +350,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
             child: transactionProvider.isLoading
                 ? const IOSLoadingIndicator()
                 : groupedTransactions.isEmpty
-                    ? IOSEmptyState(
+                    ? const IOSEmptyState(
                         icon: CupertinoIcons.doc_text,
                         title: 'No Transactions Found',
                         subtitle: 'Start recording your sales and expenses',
@@ -391,22 +422,25 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
         ...transactions.map((transaction) {
           return Padding(
             padding: const EdgeInsets.only(bottom: IOSSpacing.xs),
-            child: IOSTransactionItem(
-              title: transaction.itemName,
-              amount: 'UGX ${transaction.amount.toStringAsFixed(0)}',
-              time: _formatDateTime(transaction.createdAt),
-              color: _getTransactionColor(transaction.type),
-              icon: _getTransactionIcon(transaction.type),
-              category: transaction.category,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (_) =>
-                        TransactionEditScreen(transaction: transaction),
-                  ),
-                );
-              },
+            child: GestureDetector(
+              onLongPress: () => _showTransactionOptions(context, transaction),
+              child: IOSTransactionItem(
+                title: transaction.itemName,
+                amount: 'UGX ${transaction.amount.toStringAsFixed(0)}',
+                time: _formatDateTime(transaction.createdAt),
+                color: _getTransactionColor(transaction.type),
+                icon: _getTransactionIcon(transaction.type),
+                category: transaction.category,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (_) =>
+                          TransactionEditScreen(transaction: transaction),
+                    ),
+                  );
+                },
+              ),
             ),
           );
         }),
@@ -416,13 +450,18 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
   }
 
   Color _getTransactionColor(app.TransactionType type) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     switch (type) {
       case app.TransactionType.sale:
-        return IOSColors.saleColor;
+        return isDarkMode ? IOSDarkColors.saleColor : IOSColors.saleColor;
       case app.TransactionType.expense:
-        return IOSColors.expenseColor;
+        return isDarkMode ? IOSDarkColors.expenseColor : IOSColors.expenseColor;
       case app.TransactionType.purchase:
-        return IOSColors.purchaseColor;
+        return isDarkMode
+            ? IOSDarkColors.purchaseColor
+            : IOSColors.purchaseColor;
+      case app.TransactionType.cashReceipt:
+        return isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
     }
   }
 
@@ -434,6 +473,69 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
         return CupertinoIcons.arrow_down;
       case app.TransactionType.purchase:
         return CupertinoIcons.cart_fill;
+      case app.TransactionType.cashReceipt:
+        return CupertinoIcons.money_dollar_circle_fill;
     }
+  }
+
+  void _showTransactionOptions(
+      BuildContext context, app.Transaction transaction) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(transaction.itemName),
+        message: Text('UGX ${transaction.amount.toStringAsFixed(0)}'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                // Use direct printing for better user experience
+                await ReportService.printReceipt(transaction);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Receipt printed successfully'),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error printing receipt: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Print Receipt'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (_) =>
+                      TransactionEditScreen(transaction: transaction),
+                ),
+              );
+            },
+            child: const Text('Edit Transaction'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 }

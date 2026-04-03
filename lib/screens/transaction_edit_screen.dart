@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/models/transaction.dart' as app;
 import 'package:ismart_shop/models/transaction_item.dart';
+import 'package:ismart_shop/models/product.dart';
+import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/transaction_provider.dart';
+import 'package:ismart_shop/services/local_database_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
 import 'home_screen.dart';
@@ -21,7 +24,7 @@ class TransactionEditScreen extends StatefulWidget {
 }
 
 class _TransactionEditScreenState extends State<TransactionEditScreen> {
-  int _currentIndex = 0;
+  final int _currentIndex = 0;
   late app.TransactionType _type;
   late List<TransactionItem> _items;
   late DateTime _createdAt;
@@ -29,6 +32,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   String _category = '';
   String _customerName = '';
   String _notes = '';
+  List<Product> _inventoryProducts = [];
+  bool _isLoadingProducts = false;
 
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
@@ -50,6 +55,75 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryController.text = _category;
     _customerNameController.text = _customerName;
     _notesController.text = _notes;
+
+    // Load inventory products
+    _loadInventoryProducts();
+  }
+
+  Future<void> _loadInventoryProducts() async {
+    setState(() => _isLoadingProducts = true);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final userId = authProvider.userModel?.id;
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _inventoryProducts = [];
+          _isLoadingProducts = false;
+        });
+        return;
+      }
+
+      // Load products from local database
+      final localProducts = await LocalDatabaseService.getProducts(userId);
+
+      setState(() {
+        _inventoryProducts = localProducts
+            .map((local) => Product(
+                  id: local.firebaseId ?? local.id,
+                  name: local.name,
+                  description: local.description,
+                  categoryId: local.categoryId,
+                  categoryName: local.categoryName,
+                  unit: local.unit,
+                  sellingPrice: local.sellingPrice,
+                  costPrice: local.costPrice,
+                  stockQuantity: local.stockQuantity,
+                  lowStockThreshold: local.lowStockThreshold,
+                  imageUrl: local.imageUrl,
+                  userId: local.userId,
+                  createdAt: local.createdAt,
+                  updatedAt: local.updatedAt,
+                  isActive: local.isActive,
+                ))
+            .toList();
+        _isLoadingProducts = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading inventory products: $e');
+      setState(() => _isLoadingProducts = false);
+    }
+  }
+
+  void _showProductPicker(int itemIndex) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (dialogContext) => _ProductPickerSheet(
+        products: _inventoryProducts,
+        isLoading: _isLoadingProducts,
+        onSelect: (product) {
+          // Update the item with the selected product
+          final currentItem = _items[itemIndex];
+          final updatedItem = currentItem.copyWith(
+            itemName: product.name,
+            pricePerUnit: product.sellingPrice,
+            amount: product.sellingPrice * currentItem.quantity,
+          );
+          _updateItem(itemIndex, updatedItem);
+          Navigator.pop(dialogContext);
+        },
+      ),
+    );
   }
 
   @override
@@ -96,9 +170,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       context: context,
       builder: (context) => Container(
         height: 300,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: IOSColors.systemBackground,
-          borderRadius: const BorderRadius.vertical(
+          borderRadius: BorderRadius.vertical(
             top: Radius.circular(IOSBorderRadius.large),
           ),
         ),
@@ -222,34 +296,68 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
   }
 
-  Color _getTypeColor(app.TransactionType type) {
-    switch (type) {
-      case app.TransactionType.sale:
-        return IOSColors.saleColor;
-      case app.TransactionType.expense:
-        return IOSColors.expenseColor;
-      case app.TransactionType.purchase:
-        return IOSColors.purchaseColor;
+  Color _getTypeColor(app.TransactionType type, bool isDarkMode) {
+    if (isDarkMode) {
+      switch (type) {
+        case app.TransactionType.sale:
+          return IOSDarkColors.saleColor;
+        case app.TransactionType.expense:
+          return IOSDarkColors.expenseColor;
+        case app.TransactionType.purchase:
+          return IOSDarkColors.purchaseColor;
+        case app.TransactionType.cashReceipt:
+          return IOSDarkColors.primary;
+      }
+    } else {
+      switch (type) {
+        case app.TransactionType.sale:
+          return IOSColors.saleColor;
+        case app.TransactionType.expense:
+          return IOSColors.expenseColor;
+        case app.TransactionType.purchase:
+          return IOSColors.purchaseColor;
+        case app.TransactionType.cashReceipt:
+          return IOSColors.primary;
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final typeColor = _getTypeColor(_type);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final errorColor = isDarkMode ? IOSDarkColors.error : IOSColors.error;
+
+    final typeColor = _getTypeColor(_type, isDarkMode);
 
     return Scaffold(
-      backgroundColor: IOSColors.secondarySystemBackground,
+      backgroundColor: secondarySystemBg,
       appBar: IOSNavigationBar(
         title: 'Edit Transaction',
         automaticallyImplyLeading: true,
         actions: [
           CupertinoButton(
             onPressed: _saveTransaction,
-            child: const Text(
+            child: Text(
               'Save',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: IOSColors.primary,
+                color: primaryColor,
               ),
             ),
           ),
@@ -265,18 +373,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Type',
                     style: TextStyle(
                       fontSize: 12,
-                      color: IOSColors.labelSecondary,
+                      color: labelSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: IOSSpacing.sm),
                   Row(
                     children: app.TransactionType.values.map((type) {
-                      final color = _getTypeColor(type);
+                      final color = _getTypeColor(type, isDarkMode);
                       final isSelected = _type == type;
                       return Expanded(
                         child: GestureDetector(
@@ -292,7 +400,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? color.withOpacity(0.15)
-                                  : IOSColors.secondarySystemBackground,
+                                  : secondarySystemBg,
                               borderRadius:
                                   BorderRadius.circular(IOSBorderRadius.medium),
                               border: Border.all(
@@ -307,10 +415,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                                       ? CupertinoIcons.arrow_up
                                       : type == app.TransactionType.expense
                                           ? CupertinoIcons.arrow_down
-                                          : CupertinoIcons.cart_fill,
-                                  color: isSelected
-                                      ? color
-                                      : IOSColors.labelTertiary,
+                                          : type == app.TransactionType.purchase
+                                              ? CupertinoIcons.cart_fill
+                                              : CupertinoIcons
+                                                  .money_dollar_circle_fill,
+                                  color: isSelected ? color : labelTertiary,
                                   size: 24,
                                 ),
                                 const SizedBox(height: 4),
@@ -319,9 +428,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? color
-                                        : IOSColors.labelTertiary,
+                                    color: isSelected ? color : labelTertiary,
                                   ),
                                 ),
                               ],
@@ -344,23 +451,23 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Items',
                         style: TextStyle(
                           fontSize: 12,
-                          color: IOSColors.labelSecondary,
+                          color: labelSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       CupertinoButton(
                         onPressed: _addItem,
                         padding: EdgeInsets.zero,
-                        child: const Text(
+                        child: Text(
                           '+ Add Item',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: IOSColors.primary,
+                            color: primaryColor,
                           ),
                         ),
                       ),
@@ -376,7 +483,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                         child: Text(
                           'No items added yet',
                           style: TextStyle(
-                            color: IOSColors.labelTertiary,
+                            color: labelTertiary,
                             fontSize: 15,
                           ),
                         ),
@@ -384,7 +491,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     )
                   else
                     ..._items.asMap().entries.map((entry) {
-                      return _buildItemWidget(entry.key, entry.value);
+                      return _buildItemWidget(
+                          entry.key, entry.value, isDarkMode);
                     }),
                 ],
               ),
@@ -397,12 +505,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Total Amount',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: IOSColors.labelPrimary,
+                      color: labelPrimary,
                     ),
                   ),
                   Text(
@@ -424,20 +532,20 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Customer Name',
                     style: TextStyle(
                       fontSize: 12,
-                      color: IOSColors.labelSecondary,
+                      color: labelSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: IOSSpacing.sm),
                   TextField(
                     controller: _customerNameController,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      color: IOSColors.labelPrimary,
+                      color: labelPrimary,
                     ),
                     decoration: const InputDecoration(
                       hintText: 'Enter customer name (optional)',
@@ -455,20 +563,20 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Category',
                     style: TextStyle(
                       fontSize: 12,
-                      color: IOSColors.labelSecondary,
+                      color: labelSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: IOSSpacing.sm),
                   TextField(
                     controller: _categoryController,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      color: IOSColors.labelPrimary,
+                      color: labelPrimary,
                     ),
                     decoration: const InputDecoration(
                       hintText: 'Optional',
@@ -486,11 +594,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Notes',
                     style: TextStyle(
                       fontSize: 12,
-                      color: IOSColors.labelSecondary,
+                      color: labelSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -498,9 +606,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   TextField(
                     controller: _notesController,
                     maxLines: 3,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      color: IOSColors.labelPrimary,
+                      color: labelPrimary,
                     ),
                     decoration: const InputDecoration(
                       hintText: 'Additional notes (optional)',
@@ -520,11 +628,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Date & Time',
                       style: TextStyle(
                         fontSize: 12,
-                        color: IOSColors.labelSecondary,
+                        color: labelSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -533,15 +641,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       children: [
                         Icon(
                           CupertinoIcons.calendar,
-                          color: IOSColors.primary,
+                          color: primaryColor,
                           size: 20,
                         ),
                         const SizedBox(width: IOSSpacing.md),
                         Text(
                           '${_createdAt.day}/${_createdAt.month}/${_createdAt.year} at ${_createdAt.hour}:${_createdAt.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
-                            color: IOSColors.labelPrimary,
+                            color: labelPrimary,
                           ),
                         ),
                       ],
@@ -558,7 +666,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               height: 50,
               child: CupertinoButton(
                 onPressed: _deleteTransaction,
-                color: IOSColors.error.withOpacity(0.1),
+                color: errorColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -566,7 +674,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     Icon(
                       CupertinoIcons.trash_fill,
                       size: 18,
-                      color: IOSColors.error,
+                      color: errorColor,
                     ),
                     const SizedBox(width: IOSSpacing.sm),
                     Text(
@@ -574,7 +682,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: IOSColors.error,
+                        color: errorColor,
                       ),
                     ),
                   ],
@@ -589,7 +697,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         height: 80,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: IOSColors.systemBackground.withOpacity(0.95),
+          color: systemBg.withOpacity(0.95),
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
@@ -604,10 +712,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(0, CupertinoIcons.house, 'Home'),
-              _buildNavItem(1, CupertinoIcons.list_bullet, 'Transactions'),
-              _buildNavItem(2, CupertinoIcons.chart_bar, 'Reports'),
-              _buildNavItem(3, CupertinoIcons.settings, 'Settings'),
+              _buildNavItem(
+                  0, CupertinoIcons.house, 'Home', primaryColor, labelTertiary),
+              _buildNavItem(1, CupertinoIcons.list_bullet, 'Transactions',
+                  primaryColor, labelTertiary),
+              _buildNavItem(2, CupertinoIcons.chart_bar, 'Reports',
+                  primaryColor, labelTertiary),
+              _buildNavItem(3, CupertinoIcons.settings, 'Settings',
+                  primaryColor, labelTertiary),
             ],
           ),
         ),
@@ -615,7 +727,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon, String label,
+      Color primaryColor, Color labelTertiary) {
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
@@ -626,9 +739,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? IOSColors.primary.withOpacity(0.12)
-              : Colors.transparent,
+          color:
+              isSelected ? primaryColor.withOpacity(0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -637,7 +749,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             Icon(
               icon,
               size: isSelected ? 24 : 22,
-              color: isSelected ? IOSColors.primary : IOSColors.labelTertiary,
+              color: isSelected ? primaryColor : labelTertiary,
             ),
             if (isSelected) const SizedBox(width: 8),
             if (isSelected)
@@ -646,7 +758,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: IOSColors.primary,
+                  color: primaryColor,
                 ),
               ),
           ],
@@ -662,14 +774,27 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
   }
 
-  Widget _buildItemWidget(int index, TransactionItem item) {
+  Widget _buildItemWidget(int index, TransactionItem item, bool isDarkMode) {
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final errorColor = isDarkMode ? IOSDarkColors.error : IOSColors.error;
+
     return Container(
       margin: const EdgeInsets.only(bottom: IOSSpacing.md),
       padding: const EdgeInsets.all(IOSSpacing.md),
       decoration: BoxDecoration(
-        color: IOSColors.secondarySystemBackground,
+        color: secondarySystemBg,
         borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
-        border: Border.all(color: IOSColors.labelQuaternary),
+        border: Border.all(color: labelQuaternary),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,12 +820,32 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                         TextSelection.collapsed(offset: item.itemName.length),
                 ),
               ),
+              // Inventory selection button
+              GestureDetector(
+                onTap: () => _showProductPicker(index),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+                    border: Border.all(
+                      color: primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.cube_box,
+                    size: 18,
+                    color: primaryColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               CupertinoButton(
                 onPressed: () => _removeItem(index),
                 padding: EdgeInsets.zero,
                 child: Icon(
                   CupertinoIcons.minus_circle_fill,
-                  color: IOSColors.error,
+                  color: errorColor,
                   size: 24,
                 ),
               ),
@@ -717,11 +862,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Qty',
                       style: TextStyle(
                         fontSize: 11,
-                        color: IOSColors.labelSecondary,
+                        color: labelSecondary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -729,14 +874,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 8),
                       decoration: BoxDecoration(
-                        color: IOSColors.systemBackground,
+                        color: systemBg,
                         borderRadius:
                             BorderRadius.circular(IOSBorderRadius.small),
-                        border: Border.all(color: IOSColors.labelQuaternary),
+                        border: Border.all(color: labelQuaternary),
                       ),
                       child: TextField(
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: false),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: false),
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
@@ -764,21 +909,21 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Unit',
                       style: TextStyle(
                         fontSize: 11,
-                        color: IOSColors.labelSecondary,
+                        color: labelSecondary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       decoration: BoxDecoration(
-                        color: IOSColors.systemBackground,
+                        color: systemBg,
                         borderRadius:
                             BorderRadius.circular(IOSBorderRadius.small),
-                        border: Border.all(color: IOSColors.labelQuaternary),
+                        border: Border.all(color: labelQuaternary),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<QuantityUnit>(
@@ -812,11 +957,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Price (UGX)',
                       style: TextStyle(
                         fontSize: 11,
-                        color: IOSColors.labelSecondary,
+                        color: labelSecondary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -824,14 +969,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 8),
                       decoration: BoxDecoration(
-                        color: IOSColors.systemBackground,
+                        color: systemBg,
                         borderRadius:
                             BorderRadius.circular(IOSBorderRadius.small),
-                        border: Border.all(color: IOSColors.labelQuaternary),
+                        border: Border.all(color: labelQuaternary),
                       ),
                       child: TextField(
-                        keyboardType:
-                            TextInputType.numberWithOptions(decimal: false),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: false),
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
@@ -866,7 +1011,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: IOSColors.primary,
+                  color: primaryColor,
                 ),
               ),
             ],
@@ -899,5 +1044,249 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       case QuantityUnit.pieces:
         return 'pieces';
     }
+  }
+}
+
+// Product Picker Sheet Widget
+class _ProductPickerSheet extends StatefulWidget {
+  final List<Product> products;
+  final bool isLoading;
+  final Function(Product) onSelect;
+
+  const _ProductPickerSheet({
+    required this.products,
+    required this.isLoading,
+    required this.onSelect,
+  });
+
+  @override
+  State<_ProductPickerSheet> createState() => _ProductPickerSheetState();
+}
+
+class _ProductPickerSheetState extends State<_ProductPickerSheet> {
+  String _searchQuery = '';
+
+  List<Product> get _filteredProducts {
+    if (_searchQuery.isEmpty) {
+      return widget.products;
+    }
+    return widget.products
+        .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? IOSDarkColors.systemBackground
+            : IOSColors.systemBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? IOSDarkColors.labelQuaternary
+                  : IOSColors.labelQuaternary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(IOSSpacing.md),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 60),
+                const Text(
+                  'Select from Inventory',
+                  style: IOSTextStyles.headline,
+                ),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+          // Search
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IOSSpacing.md),
+            child: CupertinoSearchTextField(
+              placeholder: 'Search products...',
+              onChanged: (value) {
+                setState(() => _searchQuery = value);
+              },
+            ),
+          ),
+          const SizedBox(height: IOSSpacing.sm),
+          // Products list
+          Expanded(
+            child: widget.isLoading
+                ? const Center(child: CupertinoActivityIndicator())
+                : _filteredProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.cube_box,
+                              size: 48,
+                              color: isDarkMode
+                                  ? IOSDarkColors.labelTertiary
+                                  : IOSColors.labelTertiary,
+                            ),
+                            const SizedBox(height: IOSSpacing.md),
+                            Text(
+                              _searchQuery.isEmpty
+                                  ? 'No products in inventory'
+                                  : 'No products found',
+                              style: TextStyle(
+                                color: isDarkMode
+                                    ? IOSDarkColors.labelSecondary
+                                    : IOSColors.labelSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: IOSSpacing.md),
+                        itemCount: _filteredProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = _filteredProducts[index];
+                          return _ProductPickerItem(
+                            product: product,
+                            onTap: () => widget.onSelect(product),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductPickerItem extends StatelessWidget {
+  final Product product;
+  final VoidCallback onTap;
+
+  const _ProductPickerItem({
+    required this.product,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: IOSSpacing.sm),
+        padding: const EdgeInsets.all(IOSSpacing.md),
+        decoration: BoxDecoration(
+          color: isDarkMode
+              ? IOSDarkColors.secondarySystemBackground
+              : IOSColors.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+          border: Border.all(
+            color: isDarkMode
+                ? IOSDarkColors.labelQuaternary
+                : IOSColors.labelQuaternary,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Product icon
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: IOSColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(IOSBorderRadius.small),
+              ),
+              child: const Icon(
+                CupertinoIcons.cube_box_fill,
+                color: IOSColors.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: IOSSpacing.md),
+            // Product info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDarkMode
+                          ? IOSDarkColors.labelPrimary
+                          : IOSColors.labelPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    product.categoryName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDarkMode
+                          ? IOSDarkColors.labelSecondary
+                          : IOSColors.labelSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Price
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'UGX ${product.sellingPrice.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: IOSColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Stock: ${product.stockQuantity}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode
+                        ? IOSDarkColors.labelSecondary
+                        : IOSColors.labelSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: IOSSpacing.sm),
+            Icon(
+              CupertinoIcons.chevron_right,
+              size: 16,
+              color: isDarkMode
+                  ? IOSDarkColors.labelTertiary
+                  : IOSColors.labelTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

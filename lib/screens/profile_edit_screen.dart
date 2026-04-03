@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:ismart_shop/providers/auth_provider.dart' as app_auth;
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
@@ -159,20 +157,38 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<app_auth.AuthProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final tertiarySystemBg = isDarkMode
+        ? IOSDarkColors.tertiarySystemBackground
+        : IOSColors.tertiarySystemBackground;
 
     return Scaffold(
-      backgroundColor: IOSColors.secondarySystemBackground,
+      backgroundColor: secondarySystemBg,
       appBar: IOSNavigationBar(
         title: 'Edit Profile',
         automaticallyImplyLeading: true,
         actions: [
           CupertinoButton(
             onPressed: authProvider.isLoading ? null : _saveProfile,
-            child: const Text(
+            child: Text(
               'Save',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: IOSColors.primary,
+                color: primaryColor,
               ),
             ),
           ),
@@ -195,7 +211,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: IOSColors.primary.withOpacity(0.3),
+                          color: primaryColor.withOpacity(0.3),
                           width: 2,
                         ),
                       ),
@@ -215,10 +231,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                     height: 120,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
-                                      return _buildPlaceholderIcon();
+                                      return _buildPlaceholderIcon(isDarkMode);
                                     },
                                   )
-                                : _buildPlaceholderIcon(),
+                                : _buildPlaceholderIcon(isDarkMode),
                       ),
                     ),
                     Positioned(
@@ -227,10 +243,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: IOSColors.primary,
+                          color: primaryColor,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: IOSColors.systemBackground,
+                            color: systemBg,
                             width: 2,
                           ),
                         ),
@@ -246,10 +262,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               ),
             ),
             const SizedBox(height: IOSSpacing.md),
-            const Text(
+            Text(
               'Tap to change photo',
               style: TextStyle(
-                color: IOSColors.labelSecondary,
+                color: labelSecondary,
                 fontSize: 14,
               ),
             ),
@@ -263,6 +279,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     label: 'Name',
                     placeholder: 'Enter your name',
                     icon: CupertinoIcons.person_fill,
+                    isDarkMode: isDarkMode,
                   ),
                 ],
               ),
@@ -276,6 +293,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     label: 'Email',
                     value: authProvider.userModel?.email ?? 'Not set',
                     icon: CupertinoIcons.envelope_fill,
+                    isDarkMode: isDarkMode,
                   ),
                 ],
               ),
@@ -287,18 +305,24 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
   }
 
-  Widget _buildPlaceholderIcon() {
+  Widget _buildPlaceholderIcon(bool isDarkMode) {
+    final tertiarySystemBg = isDarkMode
+        ? IOSDarkColors.tertiarySystemBackground
+        : IOSColors.tertiarySystemBackground;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+
     return Container(
       width: 120,
       height: 120,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: IOSColors.tertiarySystemBackground,
+        color: tertiarySystemBg,
       ),
-      child: const Icon(
+      child: Icon(
         CupertinoIcons.person_fill,
         size: 60,
-        color: IOSColors.labelTertiary,
+        color: labelTertiary,
       ),
     );
   }
@@ -308,7 +332,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     required String label,
     required String placeholder,
     required IconData icon,
+    required bool isDarkMode,
   }) {
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: IOSSpacing.sm),
       child: Row(
@@ -316,10 +347,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: IOSColors.primary.withOpacity(0.15),
+              color: primaryColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
             ),
-            child: Icon(icon, color: IOSColors.primary, size: 20),
+            child: Icon(icon, color: primaryColor, size: 20),
           ),
           const SizedBox(width: IOSSpacing.md),
           Expanded(
@@ -328,18 +359,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: IOSColors.labelSecondary,
+                    color: labelSecondary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 CupertinoTextField(
                   controller: controller,
                   placeholder: placeholder,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
-                    color: IOSColors.labelPrimary,
+                    color: labelPrimary,
                   ),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.transparent),
@@ -358,7 +389,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     required String label,
     required String value,
     required IconData icon,
+    required bool isDarkMode,
   }) {
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: IOSSpacing.sm),
       child: Row(
@@ -366,10 +404,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: IOSColors.primary.withOpacity(0.15),
+              color: primaryColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
             ),
-            child: Icon(icon, color: IOSColors.primary, size: 20),
+            child: Icon(icon, color: primaryColor, size: 20),
           ),
           const SizedBox(width: IOSSpacing.md),
           Expanded(
@@ -378,17 +416,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: IOSColors.labelSecondary,
+                    color: labelSecondary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
-                    color: IOSColors.labelTertiary,
+                    color: labelTertiary,
                   ),
                 ),
               ],

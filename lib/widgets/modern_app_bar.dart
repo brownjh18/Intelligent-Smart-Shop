@@ -24,16 +24,22 @@ class ModernAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDarkMode ? AppDarkColors.surface : AppColors.surface;
+    final textPrimary =
+        isDarkMode ? AppDarkColors.textPrimary : AppColors.textPrimary;
+    final primaryColor = isDarkMode ? AppDarkColors.primary : AppColors.primary;
+
     return Container(
       decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.surface.withOpacity(0.9),
+        color: backgroundColor ?? surfaceColor.withOpacity(0.9),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -49,7 +55,7 @@ class ModernAppBar extends StatelessWidget implements PreferredSizeWidget {
           child: Container(
             padding: const EdgeInsets.only(top: 40, left: 16, right: 16),
             decoration: BoxDecoration(
-              color: (backgroundColor ?? AppColors.surface).withOpacity(0.7),
+              color: (backgroundColor ?? surfaceColor).withOpacity(0.7),
             ),
             child: SafeArea(
               bottom: false,
@@ -60,12 +66,12 @@ class ModernAppBar extends StatelessWidget implements PreferredSizeWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: primaryColor.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back,
-                          color: AppColors.primary,
+                          color: primaryColor,
                         ),
                       ),
                       onPressed: () => Navigator.maybePop(context),
@@ -75,10 +81,10 @@ class ModernAppBar extends StatelessWidget implements PreferredSizeWidget {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: textPrimary,
                       ),
                     ),
                   ),
@@ -112,13 +118,16 @@ class ModernTransparentAppBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDarkMode ? AppDarkColors.primary : AppColors.primary;
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.primary.withOpacity(0.3),
+            primaryColor.withOpacity(0.3),
             Colors.transparent,
           ],
         ),

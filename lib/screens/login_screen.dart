@@ -27,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
   }
@@ -48,9 +48,6 @@ class _LoginScreenState extends State<LoginScreen>
       _isLoading = true;
     });
 
-    // Start button animation
-    _animationController.forward();
-
     final authProvider = context.read<AuthProvider>();
     await authProvider.login(
       _emailController.text.trim(),
@@ -66,15 +63,11 @@ class _LoginScreenState extends State<LoginScreen>
           CupertinoPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (authProvider.error.isNotEmpty) {
-        // Reset animation on error
-        _animationController.reset();
         setState(() {
           _isLoading = false;
         });
         _showErrorDialog(authProvider.error);
       } else {
-        // Reset animation
-        _animationController.reset();
         setState(() {
           _isLoading = false;
         });
@@ -101,11 +94,24 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
 
     return Scaffold(
-      backgroundColor: IOSColors.systemBackground,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: IOSColors.systemBackground,
+        backgroundColor: bgColor,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -118,42 +124,32 @@ class _LoginScreenState extends State<LoginScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: IOSSpacing.xxl),
-                // Logo with animation
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _isLoading
-                          ? 0.8 + (0.2 * (1 - _animationController.value))
-                          : 1.0,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: IOSColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(IOSBorderRadius.xl),
-                    ),
-                    child: const Icon(
-                      Icons.store,
-                      size: 40,
-                      color: IOSColors.primary,
-                    ),
+                // Logo
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.xl),
+                  ),
+                  child: Icon(
+                    Icons.store,
+                    size: 40,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: IOSSpacing.lg),
                 // Title
-                const Text(
+                Text(
                   'Welcome Back',
-                  style: IOSTextStyles.title1,
+                  style: IOSTextStyles.title1.copyWith(color: labelPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: IOSSpacing.xs),
-                const Text(
+                Text(
                   'Sign in to continue',
-                  style: IOSTextStyles.subheadline,
+                  style:
+                      IOSTextStyles.subheadline.copyWith(color: labelSecondary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: IOSSpacing.xxxl),
@@ -166,8 +162,7 @@ class _LoginScreenState extends State<LoginScreen>
                   onSubmitted: (_) {
                     _passwordFocusNode.requestFocus();
                   },
-                  prefix: const Icon(CupertinoIcons.mail,
-                      color: IOSColors.labelTertiary),
+                  prefix: Icon(CupertinoIcons.mail, color: labelTertiary),
                 ),
                 const SizedBox(height: IOSSpacing.md),
                 // Password field
@@ -178,8 +173,7 @@ class _LoginScreenState extends State<LoginScreen>
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _handleLogin(),
-                  prefix: const Icon(CupertinoIcons.lock_fill,
-                      color: IOSColors.labelTertiary),
+                  prefix: Icon(CupertinoIcons.lock_fill, color: labelTertiary),
                   suffix: GestureDetector(
                     onTap: () {
                       setState(() {
@@ -190,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen>
                       _obscurePassword
                           ? CupertinoIcons.eye_slash
                           : CupertinoIcons.eye,
-                      color: IOSColors.labelTertiary,
+                      color: labelTertiary,
                     ),
                   ),
                 ),
@@ -200,86 +194,42 @@ class _LoginScreenState extends State<LoginScreen>
                   alignment: Alignment.centerRight,
                   child: CupertinoButton(
                     onPressed: () {},
-                    child: const Text(
+                    child: Text(
                       'Forgot Password?',
                       style: TextStyle(
                         fontSize: 15,
-                        color: IOSColors.primary,
+                        color: primaryColor,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: IOSSpacing.xl),
-                // Animated login button
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: Stack(
-                        children: [
-                          // Success checkmark
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: AnimatedBuilder(
-                                animation: _animationController,
-                                builder: (context, child) {
-                                  final progress = _animationController.value;
-                                  final successOpacity = progress > 0.7
-                                      ? (progress - 0.7) * 3.33
-                                      : 0.0;
-                                  return Opacity(
-                                    opacity: successOpacity.clamp(0.0, 1.0),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: IOSColors.success,
-                                        borderRadius: BorderRadius.circular(
-                                            IOSBorderRadius.medium),
-                                      ),
-                                      child: const Center(
-                                        child: Icon(
-                                          CupertinoIcons.checkmark,
-                                          color: Colors.white,
-                                          size: 28,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                // Simple login button with loading indicator
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: CupertinoButton.filled(
+                    onPressed: authProvider.isLoading || _isLoading
+                        ? null
+                        : _handleLogin,
+                    borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CupertinoActivityIndicator(
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Sign In',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          // Button
-                          Positioned.fill(
-                            child: CupertinoButton.filled(
-                              onPressed: authProvider.isLoading || _isLoading
-                                  ? null
-                                  : _handleLogin,
-                              borderRadius:
-                                  BorderRadius.circular(IOSBorderRadius.medium),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CupertinoActivityIndicator(
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Sign In',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  ),
                 ),
                 const SizedBox(height: IOSSpacing.xl),
                 // Or divider
@@ -288,23 +238,24 @@ class _LoginScreenState extends State<LoginScreen>
                     Expanded(
                       child: Container(
                         height: 1,
-                        color: IOSColors.labelQuaternary,
+                        color: labelQuaternary,
                       ),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: IOSSpacing.md),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: IOSSpacing.md),
                       child: Text(
                         'or',
                         style: TextStyle(
                           fontSize: 15,
-                          color: IOSColors.labelSecondary,
+                          color: labelSecondary,
                         ),
                       ),
                     ),
                     Expanded(
                       child: Container(
                         height: 1,
-                        color: IOSColors.labelQuaternary,
+                        color: labelQuaternary,
                       ),
                     ),
                   ],
@@ -323,17 +274,17 @@ class _LoginScreenState extends State<LoginScreen>
                     child: RichText(
                       text: TextSpan(
                         text: "Don't have an account? ",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          color: IOSColors.labelSecondary,
+                          color: labelSecondary,
                         ),
                         children: [
                           TextSpan(
                             text: 'Sign Up',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: IOSColors.primary,
+                              color: primaryColor,
                             ),
                           ),
                         ],

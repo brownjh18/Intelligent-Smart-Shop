@@ -14,6 +14,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _showFirebaseWarning = false;
+
   @override
   void initState() {
     super.initState();
@@ -21,12 +23,24 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToScreen() async {
-    // Wait for Firebase to initialize and check auth state
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Wait briefly for Firebase to initialize and check auth state
+    await Future.delayed(const Duration(milliseconds: 200));
 
     if (!mounted) return;
 
     final authProvider = context.read<AuthProvider>();
+
+    // Check if Firebase failed to initialize
+    if (!authProvider.isFirebaseReady) {
+      debugPrint('Firebase not initialized - showing warning');
+      if (mounted) {
+        setState(() {
+          _showFirebaseWarning = true;
+        });
+      }
+    }
+
+    if (!mounted) return;
 
     // Check if user is already signed in (from previous session)
     // This keeps user logged in even after app refresh
@@ -94,6 +108,34 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: IOSSpacing.xxxl),
+            // Firebase Warning
+            if (_showFirebaseWarning)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: IOSSpacing.xl),
+                padding: const EdgeInsets.all(IOSSpacing.md),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(IOSBorderRadius.large),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.white, size: 20),
+                    SizedBox(width: IOSSpacing.sm),
+                    Flexible(
+                      child: Text(
+                        'Firebase not configured - App will run in demo mode',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Loading indicator
             const CupertinoActivityIndicator(
               color: Colors.white,

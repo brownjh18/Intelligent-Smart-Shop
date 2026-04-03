@@ -12,6 +12,7 @@ class OnboardingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     // Calculate responsive dimensions
     final illustrationHeight = screenHeight * 0.22;
@@ -27,10 +28,27 @@ class OnboardingScreen extends StatelessWidget {
 
     final languageProvider = context.watch<LanguageProvider>();
 
+    // Dark mode colors
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+
     return Scaffold(
-      backgroundColor: IOSColors.systemBackground,
+      backgroundColor: systemBg,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(
             horizontal: screenWidth * 0.06,
             vertical: screenHeight * 0.02,
@@ -43,14 +61,14 @@ class OnboardingScreen extends StatelessWidget {
                 alignment: Alignment.topRight,
                 child: CupertinoButton(
                   onPressed: () {
-                    _showLanguagePicker(context, languageProvider);
+                    _showLanguagePicker(context, languageProvider, isDarkMode);
                   },
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         CupertinoIcons.globe,
-                        color: IOSColors.primary,
+                        color: primaryColor,
                         size: 18,
                       ),
                       const SizedBox(width: 4),
@@ -58,15 +76,15 @@ class OnboardingScreen extends StatelessWidget {
                         languageProvider.getLanguageName(
                           languageProvider.currentLanguage,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
-                          color: IOSColors.primary,
+                          color: primaryColor,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         CupertinoIcons.chevron_down,
-                        color: IOSColors.primary,
+                        color: primaryColor,
                         size: 14,
                       ),
                     ],
@@ -78,7 +96,7 @@ class OnboardingScreen extends StatelessWidget {
               Container(
                 height: clampedIllustrationHeight,
                 decoration: BoxDecoration(
-                  color: IOSColors.primary.withOpacity(0.1),
+                  color: primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(IOSBorderRadius.xxxl),
                 ),
                 child: Center(
@@ -86,28 +104,29 @@ class OnboardingScreen extends StatelessWidget {
                     width: clampedIconSize,
                     height: clampedIconSize,
                     decoration: BoxDecoration(
-                      color: IOSColors.primary.withOpacity(0.2),
+                      color: primaryColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(IOSBorderRadius.xxxl),
                     ),
                     child: Icon(
                       Icons.store,
                       size: clampedIconSize * 0.5,
-                      color: IOSColors.primary,
+                      color: primaryColor,
                     ),
                   ),
                 ),
               ),
               SizedBox(height: screenHeight * 0.03),
               // Welcome text
-              const Text(
+              Text(
                 'Welcome to iSmart Shop',
-                style: IOSTextStyles.title1,
+                style: IOSTextStyles.title1.copyWith(color: labelPrimary),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: screenHeight * 0.008),
-              const Text(
+              Text(
                 'Your intelligent assistant for managing shop transactions',
-                style: IOSTextStyles.subheadline,
+                style:
+                    IOSTextStyles.subheadline.copyWith(color: labelSecondary),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: screenHeight * 0.03),
@@ -117,6 +136,7 @@ class OnboardingScreen extends StatelessWidget {
                 'Record transactions by voice',
                 'Speak naturally in English or Luganda',
                 clampedFeatureIconSize,
+                isDarkMode,
               ),
               SizedBox(height: screenHeight * 0.015),
               _buildFeatureTile(
@@ -124,6 +144,7 @@ class OnboardingScreen extends StatelessWidget {
                 'Enter transactions manually',
                 'Quick and easy text entry',
                 clampedFeatureIconSize,
+                isDarkMode,
               ),
               SizedBox(height: screenHeight * 0.015),
               _buildFeatureTile(
@@ -131,6 +152,7 @@ class OnboardingScreen extends StatelessWidget {
                 'View sales reports & analytics',
                 'Track your business performance',
                 clampedFeatureIconSize,
+                isDarkMode,
               ),
               SizedBox(height: screenHeight * 0.015),
               _buildFeatureTile(
@@ -138,8 +160,9 @@ class OnboardingScreen extends StatelessWidget {
                 'Secure & private',
                 'Your data is always protected',
                 clampedFeatureIconSize,
+                isDarkMode,
               ),
-              const Spacer(),
+              SizedBox(height: screenHeight * 0.03),
               // Get Started button
               SizedBox(
                 height: clampedButtonHeight,
@@ -168,15 +191,26 @@ class OnboardingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureTile(
-      IconData icon, String title, String subtitle, double iconSize) {
+  Widget _buildFeatureTile(IconData icon, String title, String subtitle,
+      double iconSize, bool isDarkMode) {
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelSecondary =
+        isDarkMode ? IOSDarkColors.labelSecondary : IOSColors.labelSecondary;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final secondarySystemBg = isDarkMode
+        ? IOSDarkColors.secondarySystemBackground
+        : IOSColors.secondarySystemBackground;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+
     return Container(
       padding: const EdgeInsets.all(IOSSpacing.md),
       decoration: BoxDecoration(
-        color: IOSColors.secondarySystemBackground,
+        color: secondarySystemBg,
         borderRadius: BorderRadius.circular(IOSBorderRadius.large),
         border: Border.all(
-          color: IOSColors.labelQuaternary.withOpacity(0.5),
+          color: labelQuaternary.withOpacity(0.5),
         ),
       ),
       child: Row(
@@ -184,10 +218,10 @@ class OnboardingScreen extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(iconSize * 0.15),
             decoration: BoxDecoration(
-              color: IOSColors.primary.withOpacity(0.15),
+              color: primaryColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
             ),
-            child: Icon(icon, color: IOSColors.primary, size: iconSize * 0.5),
+            child: Icon(icon, color: primaryColor, size: iconSize * 0.5),
           ),
           const SizedBox(width: IOSSpacing.md),
           Expanded(
@@ -196,17 +230,17 @@ class OnboardingScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: IOSColors.labelPrimary,
+                    color: labelPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: IOSColors.labelSecondary,
+                    color: labelSecondary,
                   ),
                 ),
               ],
@@ -220,14 +254,23 @@ class OnboardingScreen extends StatelessWidget {
   void _showLanguagePicker(
     BuildContext context,
     LanguageProvider languageProvider,
+    bool isDarkMode,
   ) {
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final labelTertiary =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
+
     showCupertinoModalPopup<void>(
       context: context,
       builder: (context) => Container(
         height: 200,
-        decoration: const BoxDecoration(
-          color: IOSColors.systemBackground,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: systemBg,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(IOSBorderRadius.large),
           ),
         ),
@@ -246,8 +289,8 @@ class OnboardingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 17,
                   color: languageProvider.currentLanguage == 'en'
-                      ? IOSColors.labelPrimary
-                      : IOSColors.labelTertiary,
+                      ? labelPrimary
+                      : labelTertiary,
                 ),
               ),
             ),
@@ -257,8 +300,8 @@ class OnboardingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 17,
                   color: languageProvider.currentLanguage == 'lg'
-                      ? IOSColors.labelPrimary
-                      : IOSColors.labelTertiary,
+                      ? labelPrimary
+                      : labelTertiary,
                 ),
               ),
             ),

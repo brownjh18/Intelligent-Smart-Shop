@@ -5,6 +5,7 @@ enum TransactionType {
   sale,
   expense,
   purchase,
+  cashReceipt,
 }
 
 class Transaction {

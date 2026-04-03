@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:ismart_shop/providers/transaction_provider.dart';
 import 'package:ismart_shop/providers/language_provider.dart';
 import 'package:ismart_shop/services/nlp_service.dart';
 import 'package:ismart_shop/services/translation_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 import 'package:ismart_shop/widgets/ios_app_bar.dart';
-import 'transaction_review_screen.dart';
+import 'package:ismart_shop/widgets/app_bottom_nav.dart';
+import 'voice_recording_screen.dart';
 import 'home_screen.dart';
 
 class TextEntryScreen extends StatefulWidget {
@@ -43,10 +43,7 @@ class _TextEntryScreenState extends State<TextEntryScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (_) => TransactionReviewScreen(
-          transcribedText: inputText,
-          transactionIntent: intent,
-        ),
+        builder: (_) => const VoiceRecordingScreen(),
       ),
     );
   }
@@ -241,44 +238,17 @@ class _TextEntryScreenState extends State<TextEntryScreen> {
             ),
           ),
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: IOSColors.systemBackground,
-            border: Border(
-              top: BorderSide(
-                color: IOSColors.labelQuaternary.withOpacity(0.5),
-                width: 0.5,
+        bottomNavigationBar: AppBottomNav(
+          currentIndex: 0, // Start at Home tab
+          onNavigate: (index) {
+            // Navigate based on index
+            Navigator.pushReplacement(
+              context,
+              CupertinoPageRoute(
+                builder: (_) => HomeScreen(initialTabIndex: index),
               ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: CupertinoTabBar(
-              currentIndex: 0,
-              onTap: (index) => _navigateToHome(),
-              backgroundColor: IOSColors.systemBackground,
-              activeColor: IOSColors.primary,
-              inactiveColor: IOSColors.labelTertiary,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.house),
-                  label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.list_bullet),
-                  label: 'Transactions',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.chart_bar),
-                  label: 'Reports',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.settings),
-                  label: 'Settings',
-                ),
-              ],
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

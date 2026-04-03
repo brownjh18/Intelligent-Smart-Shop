@@ -28,12 +28,22 @@ class IOSNavigationBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+
     return Container(
       decoration: BoxDecoration(
-        color: backgroundColor ?? IOSColors.systemBackground,
+        color: backgroundColor ?? systemBg,
         border: Border(
           bottom: BorderSide(
-            color: IOSColors.labelQuaternary.withOpacity(0.5),
+            color: labelQuaternary.withOpacity(0.5),
             width: 0.5,
           ),
         ),
@@ -55,14 +65,19 @@ class IOSNavigationBar extends StatelessWidget implements PreferredSizeWidget {
                 child: isLargeTitle
                     ? Text(
                         title,
-                        style: IOSTextStyles.title1,
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.37,
+                          color: labelPrimary,
+                        ),
                       )
                     : Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
-                          color: IOSColors.labelPrimary,
+                          color: labelPrimary,
                         ),
                       ),
               ),
@@ -75,24 +90,27 @@ class IOSNavigationBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _buildBackButton(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
+
     return CupertinoButton(
       onPressed: () => Navigator.maybePop(context),
       padding: EdgeInsets.zero,
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             CupertinoIcons.back,
-            color: IOSColors.primary,
+            color: primaryColor,
             size: 20,
           ),
-          SizedBox(width: 4),
+          const SizedBox(width: 4),
           Text(
             'Back',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w400,
-              color: IOSColors.primary,
+              color: primaryColor,
             ),
           ),
         ],
@@ -121,13 +139,22 @@ class IOSLargeTitleNavigationBar extends StatelessWidget
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final systemBg = isDarkMode
+        ? IOSDarkColors.systemBackground
+        : IOSColors.systemBackground;
+    final labelQuaternary =
+        isDarkMode ? IOSDarkColors.labelQuaternary : IOSColors.labelQuaternary;
+    final labelPrimary =
+        isDarkMode ? IOSDarkColors.labelPrimary : IOSColors.labelPrimary;
+    final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
 
     return Container(
       decoration: BoxDecoration(
-        color: IOSColors.systemBackground,
+        color: systemBg,
         border: Border(
           bottom: BorderSide(
-            color: IOSColors.labelQuaternary.withOpacity(0.5),
+            color: labelQuaternary.withOpacity(0.5),
             width: 0.5,
           ),
         ),
@@ -149,16 +176,21 @@ class IOSLargeTitleNavigationBar extends StatelessWidget
                       onPressed:
                           onBackPressed ?? () => Navigator.maybePop(context),
                       padding: EdgeInsets.zero,
-                      child: const Icon(
+                      child: Icon(
                         CupertinoIcons.back,
-                        color: IOSColors.primary,
+                        color: primaryColor,
                         size: 20,
                       ),
                     ),
                   Expanded(
                     child: Text(
                       title,
-                      style: IOSTextStyles.largeTitle,
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.37,
+                        color: labelPrimary,
+                      ),
                     ),
                   ),
                   if (actions != null) ...actions!,

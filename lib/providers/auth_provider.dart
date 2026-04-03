@@ -18,11 +18,13 @@ class AuthProvider with ChangeNotifier {
   String get error => _error;
   bool get isAuthenticated =>
       _userModel != null || _demoMode || _auth?.currentUser != null;
+  bool get isFirebaseReady => _firebaseInitialized && !_demoMode;
 
   bool get isSignedIn => _auth?.currentUser != null || _demoMode;
 
-  AuthProvider() {
+  AuthProvider({bool firebaseInitialized = false}) {
     debugPrint('AuthProvider constructor called');
+    _firebaseInitialized = firebaseInitialized;
     _initializeAuth();
   }
 
@@ -35,14 +37,14 @@ class AuthProvider with ChangeNotifier {
     // Auth state listener is now set up in _ensureFirebaseInitialized
   }
 
+  bool _authListenerSetup = false;
+  bool _isLoadingUserData = false;
+
   void _ensureFirebaseInitialized() {
-    debugPrint('_ensureFirebaseInitialized called');
+    debugPrint(
+        '_ensureFirebaseInitialized called - firebaseInitialized: $_firebaseInitialized');
 
-    if (_firebaseInitialized) {
-      debugPrint('Firebase already initialized, demoMode: $_demoMode');
-      return;
-    }
-
+    // Always initialize Firebase Auth and Firestore instances
     try {
       _auth = FirebaseAuth.instance;
       _firestore = FirebaseFirestore.instance;
@@ -54,22 +56,22 @@ class AuthProvider with ChangeNotifier {
         _loadUserData(currentUser.uid);
       }
 
-      // Set up auth state listener for future changes
-      _auth!.authStateChanges().listen((User? user) {
-        debugPrint('Auth state changed: ${user?.uid ?? 'null'}');
-        if (user != null && !_demoMode) {
-          _loadUserData(user.uid);
-        }
-      });
+      // Set up auth state listener only once
+      if (!_authListenerSetup) {
+        _authListenerSetup = true;
+        _auth!.authStateChanges().listen((User? user) {
+          debugPrint('Auth state changed: ${user?.uid ?? 'null'}');
+          if (user != null && !_demoMode) {
+            _loadUserData(user.uid);
+          }
+        });
+      }
 
-      _firebaseInitialized = true;
-      _demoMode = false;
       debugPrint('Firebase initialized successfully');
     } catch (e) {
       debugPrint(
           'Firebase initialization error: $e - falling back to demo mode');
       _demoMode = true;
-      _firebaseInitialized = true;
     }
   }
 
@@ -99,9 +101,22 @@ class AuthProvider with ChangeNotifier {
       return;
     }
 
-    if (_auth == null || _firestore == null) {
-      debugPrint('Firebase not initialized properly');
-      _error = 'Firebase not configured';
+    // Firebase is initialized, check if auth is available
+    if (_auth == null) {
+      debugPrint('Firebase Auth not available');
+      // Fall back to demo mode
+      _demoMode = true;
+      _isLoading = true;
+      _error = '';
+      notifyListeners();
+
+      _userModel = UserModel(
+        id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
+        email: email,
+        displayName: email.split('@')[0],
+        language: 'en',
+        createdAt: DateTime.now(),
+      );
       _isLoading = false;
       notifyListeners();
       return;
@@ -163,9 +178,22 @@ class AuthProvider with ChangeNotifier {
       return;
     }
 
-    if (_auth == null || _firestore == null) {
-      debugPrint('Firebase not initialized properly');
-      _error = 'Firebase not configured';
+    // Firebase is initialized, check if auth and firestore are available
+    if (_auth == null) {
+      debugPrint('Firebase Auth not available');
+      // Fall back to demo mode
+      _demoMode = true;
+      _isLoading = true;
+      _error = '';
+      notifyListeners();
+
+      _userModel = UserModel(
+        id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
+        email: email,
+        displayName: displayName,
+        language: 'en',
+        createdAt: DateTime.now(),
+      );
       _isLoading = false;
       notifyListeners();
       return;
@@ -221,39 +249,49 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> _loadUserData(String userId) async {
-    _ensureFirebaseInitialized();
-
-    // Always create a user model immediately when user is authenticated
-    // This ensures isAuthenticated is true even if Firestore is unavailable
-    _userModel = UserModel(
-      id: userId,
-      email: _auth?.currentUser?.email ?? '',
-      displayName: _auth?.currentUser?.displayName ?? 'User',
-      profileImageUrl: _auth?.currentUser?.photoURL,
-      language: 'en',
-      createdAt: DateTime.now(),
-    );
-    notifyListeners();
-    debugPrint('User model created immediately: ${_userModel?.email}');
-
-    // Try to enhance user data from Firestore (optional)
-    if (_firestore == null) {
-      debugPrint('Firestore not available, using auth user data only');
+    // Prevent infinite recursion
+    if (_isLoadingUserData) {
       return;
     }
+    _isLoadingUserData = true;
 
     try {
-      DocumentSnapshot doc =
-          await _firestore!.collection('users').doc(userId).get();
-      if (doc.exists) {
-        _userModel =
-            UserModel.fromFirestore(doc.data() as Map<String, dynamic>, userId);
-        notifyListeners();
-        debugPrint('User data enhanced from Firestore: ${_userModel?.email}');
+      _ensureFirebaseInitialized();
+
+      // Always create a user model immediately when user is authenticated
+      // This ensures isAuthenticated is true even if Firestore is unavailable
+      _userModel = UserModel(
+        id: userId,
+        email: _auth?.currentUser?.email ?? '',
+        displayName: _auth?.currentUser?.displayName ?? 'User',
+        profileImageUrl: _auth?.currentUser?.photoURL,
+        language: 'en',
+        createdAt: DateTime.now(),
+      );
+      notifyListeners();
+      debugPrint('User model created immediately: ${_userModel?.email}');
+
+      // Try to enhance user data from Firestore (optional)
+      if (_firestore == null) {
+        debugPrint('Firestore not available, using auth user data only');
+        return;
       }
-    } catch (e) {
-      debugPrint('Error loading user data from Firestore (non-critical): $e');
-      // User model already set from auth, so we can continue
+
+      try {
+        DocumentSnapshot doc =
+            await _firestore!.collection('users').doc(userId).get();
+        if (doc.exists) {
+          _userModel = UserModel.fromFirestore(
+              doc.data() as Map<String, dynamic>, userId);
+          notifyListeners();
+          debugPrint('User data enhanced from Firestore: ${_userModel?.email}');
+        }
+      } catch (e) {
+        debugPrint('Error loading user data from Firestore (non-critical): $e');
+        // User model already set from auth, so we can continue
+      }
+    } finally {
+      _isLoadingUserData = false;
     }
   }
 
