@@ -12,6 +12,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:ismart_shop/models/transaction.dart';
 import 'package:ismart_shop/models/transaction_item.dart';
+import 'package:ismart_shop/models/product.dart' as app_product;
 import 'package:ismart_shop/providers/auth_provider.dart';
 import 'package:ismart_shop/providers/language_provider.dart';
 import 'package:ismart_shop/providers/transaction_provider.dart';
@@ -1195,18 +1196,51 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     if (parsed != null) {
       final name = parsed['name'] ?? 'Unknown';
       final category = parsed['category'] ?? 'Other';
-      final price = parsed['price'] ?? 0;
-      final quantity = parsed['quantity'] ?? 0;
-      final unit = parsed['unit'] ?? 'pcs';
+      final price = (parsed['price'] as num?)?.toDouble() ?? 0;
+      final quantity = (parsed['quantity'] as num?)?.toInt() ?? 0;
+      final unitStr = parsed['unit'] ?? 'pcs';
 
-      return '📦 Product Addition Request\n\n'
-          'I\'ve parsed your product details:\n\n'
-          '• Name: $name\n'
-          '• Category: $category\n'
-          '• Price: UGX ${price.toStringAsFixed(0)}\n'
-          '• Quantity: $quantity $unit\n\n'
-          'To add this product, please go to the Inventory screen and use the "Add Product" button. '
-          'I can help you record transactions involving this product!';
+      // Map unit string to display name
+      String unitDisplay = 'pcs';
+      final unitLower = unitStr.toLowerCase();
+      if (unitLower.startsWith('kg') ||
+          unitLower == 'kilo' ||
+          unitLower == 'kilos') {
+        unitDisplay = 'kgs';
+      } else if (unitLower.startsWith('gram') || unitLower == 'g') {
+        unitDisplay = 'grams';
+      } else if (unitLower == 'l' || unitLower.startsWith('liter')) {
+        unitDisplay = 'liters';
+      } else if (unitLower == 'ml') {
+        unitDisplay = 'ml';
+      } else if (unitLower.startsWith('dozen')) {
+        unitDisplay = 'dozen';
+      } else if (unitLower.startsWith('box')) {
+        unitDisplay = 'boxes';
+      } else if (unitLower.startsWith('bag')) {
+        unitDisplay = 'bags';
+      } else if (unitLower.startsWith('sack')) {
+        unitDisplay = 'sacks';
+      } else if (unitLower.startsWith('piece') || unitLower.startsWith('pcs')) {
+        unitDisplay = 'pieces';
+      }
+
+      // Show parsed data and direct to inventory screen
+      _addChatMessage(
+        '✅ Product details parsed!\n\n'
+        '• Name: $name\n'
+        '• Category: $category\n'
+        '• Selling Price: UGX ${price.toStringAsFixed(0)}\n'
+        '• Stock Quantity: $quantity $unitDisplay\n\n'
+        'I\'ve extracted your product details. To complete the addition, please:\n\n'
+        '1. Go to the Inventory screen\n'
+        '2. Tap "Add Product"\n'
+        '3. Enter the details shown above\n\n'
+        'Or say "Go to inventory" and I\'ll navigate you there!',
+        isUser: false,
+        type: ChatMessageType.inventory,
+      );
+      return 'Product "$name" parsed successfully!';
     }
 
     return '📦 Product Addition\n\n'
