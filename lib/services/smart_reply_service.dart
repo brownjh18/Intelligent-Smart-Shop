@@ -450,7 +450,7 @@ class SmartReplyService {
     return value.toStringAsFixed(0);
   }
 
-  /// Extract structured data from transaction text
+  /// Extract structured data from transaction text with proper unit handling
   static Map<String, dynamic>? extractTransactionData(String text) {
     final lowerText = text.toLowerCase();
 
@@ -468,11 +468,34 @@ class SmartReplyService {
       type = 'purchase';
     }
 
+    // Extract quantity with unit (e.g., "5 kg", "10 packets", "2 dozen")
+    int quantity = 1;
+    String unit = 'pcs'; // default unit
+
+    // Comprehensive unit pattern - matches number followed by unit
+    final qtyUnitPattern = RegExp(
+        r'(\d+)\s*(kilograms?|kgs?|kg|kilos?|grams?|g|liters?|l|litres?|milliliters?|ml|packets?|packs?|boxes?|box|bags?|sacks?|bundles?|dozens?|dz|pieces?|pcs?|pc|bottles?|cans?|cups?|plates?|rolls?|sheets?|reams?|jars?|cartons?|crates?|heads?|bunches?|sets?|meters?|m|cm|mm|feet|ft|inches?|in)',
+        caseSensitive: false);
+
+    final qtyMatch = qtyUnitPattern.firstMatch(lowerText);
+    if (qtyMatch != null) {
+      quantity = int.tryParse(qtyMatch.group(1) ?? '1') ?? 1;
+      unit = _normalizeUnit(qtyMatch.group(2) ?? 'pcs');
+    } else {
+      // Fallback: just extract number
+      final simpleQtyPattern =
+          RegExp(r'(?:sold|bought|purchase|spent|paid)\s+(\d+)\s+');
+      final simpleMatch = simpleQtyPattern.firstMatch(lowerText);
+      if (simpleMatch != null) {
+        quantity = int.tryParse(simpleMatch.group(1) ?? '1') ?? 1;
+      }
+    }
+
     // Extract item name
     String? item;
     final itemPatterns = [
       RegExp(
-          r'(?:sold|bought|purchase|spent|paid)\s+(\d+)\s+([\w\s]+?)\s+(?:at|for|each|@)'),
+          r'(?:sold|bought|purchase|spent|paid)\s+\d+\s+(?:kg|kgs|kilogram|grams|g|liter|liters|l|ml|packets?|boxes?|bags?|sacks?|bundles?|dozens?|pieces?|pcs?|bottles?|cans?|cups?|plates?|rolls?|sheets?|reams?|jars?|cartons?|crates?|heads?|bunches?|sets?|meters?|m|cm|mm|feet|ft|inches?|in)?\s*([\w\s]+?)\s+(?:at|for|each|@)'),
       RegExp(
           r'(?:sold|bought|purchase)\s+([\w\s]+?)\s+(\d+)\s+(?:at|for|each|@)'),
       RegExp(r'(?:sold|bought|purchase)\s+([\w\s]+?)\s+(?:at|for|@)\s+(\d+)'),
@@ -483,27 +506,11 @@ class SmartReplyService {
     for (final pattern in itemPatterns) {
       final match = pattern.firstMatch(lowerText);
       if (match != null) {
-        if (pattern.toString().contains(r'(\d+)\s+([\w\s]+)')) {
-          item = match.group(2)?.trim();
-        } else {
+        if (pattern.toString().contains(r'([\w\s]+)')) {
           item = match.group(1)?.trim();
+        } else {
+          item = match.group(2)?.trim();
         }
-        break;
-      }
-    }
-
-    // Extract quantity
-    int quantity = 1;
-    final qtyPatterns = [
-      RegExp(r'(?:sold|bought|purchase)\s+(\d+)\s+'),
-      RegExp(r'spent\s+(\d+)\s+'),
-      RegExp(r'paid\s+(\d+)\s+'),
-    ];
-
-    for (final pattern in qtyPatterns) {
-      final match = pattern.firstMatch(lowerText);
-      if (match != null) {
-        quantity = int.tryParse(match.group(1) ?? '1') ?? 1;
         break;
       }
     }
@@ -529,9 +536,52 @@ class SmartReplyService {
       'type': type,
       'item': item,
       'quantity': quantity,
+      'unit': unit,
       'unitPrice': price,
       'total': price * quantity,
     };
+  }
+
+  /// Normalize unit to standard form
+  static String _normalizeUnit(String unit) {
+    final lower = unit.toLowerCase();
+    if (lower.startsWith('kg') || lower == 'kilo' || lower == 'kilos')
+      return 'kgs';
+    if (lower.startsWith('gram') || lower == 'g' || lower == 'gr') return 'g';
+    if (lower.startsWith('liter') || lower.startsWith('litre') || lower == 'l')
+      return 'L';
+    if (lower.startsWith('milliliter') ||
+        lower.startsWith('millilitre') ||
+        lower == 'ml') return 'ml';
+    if (lower.startsWith('packet')) return 'packets';
+    if (lower.startsWith('pack') && !lower.startsWith('packet')) return 'packs';
+    if (lower.startsWith('box')) return 'boxes';
+    if (lower.startsWith('bag')) return 'bags';
+    if (lower.startsWith('sack')) return 'sacks';
+    if (lower.startsWith('bundle')) return 'bundles';
+    if (lower.startsWith('dozen')) return 'dozen';
+    if (lower.startsWith('piece') || lower.startsWith('pcs') || lower == 'pc')
+      return 'pcs';
+    if (lower.startsWith('bottle')) return 'bottles';
+    if (lower.startsWith('can')) return 'cans';
+    if (lower.startsWith('cup')) return 'cups';
+    if (lower.startsWith('plate')) return 'plates';
+    if (lower.startsWith('roll')) return 'rolls';
+    if (lower.startsWith('sheet')) return 'sheets';
+    if (lower.startsWith('ream')) return 'reams';
+    if (lower.startsWith('jar')) return 'jars';
+    if (lower.startsWith('carton')) return 'cartons';
+    if (lower.startsWith('crate')) return 'crates';
+    if (lower.startsWith('head')) return 'heads';
+    if (lower.startsWith('bunch')) return 'bunches';
+    if (lower.startsWith('set')) return 'sets';
+    if (lower.startsWith('meter') || lower == 'm') return 'meters';
+    if (lower.startsWith('centimeter') || lower == 'cm') return 'cm';
+    if (lower.startsWith('millimeter') || lower == 'mm') return 'mm';
+    if (lower.startsWith('foot') || lower == 'ft' || lower == 'feet')
+      return 'feet';
+    if (lower.startsWith('inch') || lower == 'in') return 'inches';
+    return lower.isEmpty ? 'pcs' : lower;
   }
 
   /// Extract business data from context for reports
