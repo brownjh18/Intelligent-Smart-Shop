@@ -1,10 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Smart Reply Service - Provides intelligent automated responses
-/// based on speech input patterns and business context
+/// Enhanced Smart Reply Service - Comprehensive AI assistant for shop management
+/// Handles extraction and recording of: expenses, sales, purchases, inventory, reports, receipts
 class SmartReplyService {
+  /// Transaction types the AI can recognize
+  static const transactionTypes = ['sale', 'expense', 'purchase'];
+
   /// Analyze the transcribed text and return an appropriate response
   static String generateSmartReply(
       String input, Map<String, dynamic> businessData) {
@@ -58,6 +60,23 @@ class SmartReplyService {
     if (_matchesPattern(
         lowerInput, ['inventory', 'stock', 'products', 'items'])) {
       return _generateInventoryResponse(totalTransactions);
+    }
+
+    // Report queries
+    if (_matchesPattern(lowerInput, [
+      'report',
+      'summary',
+      'overview',
+      'daily report',
+      'weekly report',
+      'monthly report'
+    ])) {
+      return _generateReportResponse(businessData);
+    }
+
+    // Receipt queries
+    if (_matchesPattern(lowerInput, ['receipt', 'invoice', 'print receipt'])) {
+      return _generateReceiptResponse();
     }
 
     // Transaction recording patterns
@@ -116,11 +135,11 @@ class SmartReplyService {
           '\n\n📊 You have ${totalTransactions.toInt()} transactions recorded. Ready to add more?';
     }
 
-    return '$timeGreeting! 👋 I\'m your iSmart AI assistant, here to help you manage your shop.$salesComment\n\n💡 Try saying:\n• "Sold 5 bread at 2000"\n• "How much did I sell today?"\n• "What\'s my profit?"';
+    return '$timeGreeting! 👋 I\'m your iSmart AI assistant, here to help you manage your shop.$salesComment\n\n💡 Try saying:\n• "Sold 5 bread at 2000"\n• "How much did I sell today?"\n• "Show me my daily report"';
   }
 
   static String _generateThankYouResponse() {
-    return 'You\'re very welcome! 😊\n\nI\'m here to help you grow your business. Feel free to ask me anything about your sales, expenses, or inventory. 📈\n\nWhat would you like to do next?';
+    return 'You\'re very welcome! 😊\n\nI\'m here to help you grow your business. Feel free to ask me anything about your sales, expenses, inventory, or request reports. 📈\n\nWhat would you like to do next?';
   }
 
   static String _generateSalesResponse(
@@ -221,6 +240,89 @@ class SmartReplyService {
         '📊 Tip: Keep your inventory updated to avoid stockouts!';
   }
 
+  static String _generateReportResponse(Map<String, dynamic> businessData) {
+    final todaySales = _extractDouble(businessData, "Today's Sales") ?? 0;
+    final todayExpenses = _extractDouble(businessData, "Today's Expenses") ?? 0;
+    final todayProfit = _extractDouble(businessData, "Today's Profit") ?? 0;
+    final weekSales = _extractDouble(businessData, "This Week's Sales") ?? 0;
+    final monthSales = _extractDouble(businessData, "This Month's Sales") ?? 0;
+    final totalTransactions =
+        _extractDouble(businessData, "Total Transactions") ?? 0;
+
+    return '📊 **BUSINESS REPORT** 📊\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        '📅 TODAY\'S PERFORMANCE:\n'
+        '• Sales: UGX ${_formatNumber(todaySales)}\n'
+        '• Expenses: UGX ${_formatNumber(todayExpenses)}\n'
+        '• Profit: UGX ${_formatNumber(todayProfit)}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        '📆 THIS WEEK:\n'
+        '• Sales: UGX ${_formatNumber(weekSales)}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        '📆 THIS MONTH:\n'
+        '• Sales: UGX ${_formatNumber(monthSales)}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        '📈 TOTAL ACTIVITY:\n'
+        '• Transactions: ${totalTransactions.toInt()}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        '💡 **INSIGHTS:**\n'
+        '${_generateReportInsights(todaySales, todayExpenses, todayProfit, weekSales, monthSales)}';
+  }
+
+  static String _generateReportInsights(double todaySales, double todayExpenses,
+      double todayProfit, double weekSales, double monthSales) {
+    List<String> insights = [];
+
+    if (todaySales == 0) {
+      insights.add(
+          '• No sales recorded today - start recording to track your business!');
+    } else {
+      final dailyAvg = weekSales / 7;
+      if (todaySales > dailyAvg) {
+        insights.add(
+            '• Great! Today\'s sales are above your daily average of UGX ${_formatNumber(dailyAvg)}');
+      } else {
+        insights.add(
+            '• Today\'s sales are below your daily average of UGX ${_formatNumber(dailyAvg)} - keep pushing!');
+      }
+    }
+
+    if (todayExpenses > 0 && todaySales > 0) {
+      final expenseRatio = (todayExpenses / todaySales * 100);
+      if (expenseRatio > 50) {
+        insights.add(
+            '• Warning: Expenses are ${expenseRatio.toStringAsFixed(0)}% of sales - consider reducing costs');
+      } else {
+        insights.add(
+            '• Good expense management: Expenses are ${expenseRatio.toStringAsFixed(0)}% of sales');
+      }
+    }
+
+    if (todayProfit > 0) {
+      insights.add('• You\'re making a profit! Keep up the good work! 🎉');
+    } else if (todayProfit < 0) {
+      insights
+          .add('• You\'re operating at a loss today - review your expenses');
+    }
+
+    return insights.join('\n');
+  }
+
+  static String _generateReceiptResponse() {
+    return '🧾 **Receipt Management**\n\n'
+        'I can help you print receipts and invoices!\n\n'
+        '💡 Try saying:\n'
+        '• "Print my last receipt"\n'
+        '• "Print invoice for John"\n'
+        '• "Print daily report"\n\n'
+        'Receipts include:\n'
+        '• Transaction details\n'
+        '• Items and quantities\n'
+        '• Total amounts\n'
+        '• Date and time\n\n'
+        'Would you like to print a receipt?';
+  }
+
   static bool _isTransactionIntent(String input) {
     final patterns = [
       r'\bsold\b',
@@ -301,6 +403,9 @@ class SmartReplyService {
         '• "Show my expenses"\n\n'
         '📦 **Inventory Management:**\n'
         '• "Add product Bread, price 5000"\n\n'
+        '📊 **Reports:**\n'
+        '• "Show me my daily report"\n'
+        '• "Weekly sales summary"\n\n'
         '🖨️ **Printing:**\n'
         '• "Print my last receipt"\n'
         '• "Print daily report"\n\n'
@@ -317,7 +422,7 @@ class SmartReplyService {
           '💡 Ask me:\n'
           '• "How much did I sell?"\n'
           '• "What\'s my profit?"\n'
-          '• "Show my expenses"\n\n'
+          '• "Show me my daily report"\n\n'
           'Or record a new transaction! 🎯';
     }
 
@@ -329,6 +434,8 @@ class SmartReplyService {
         '💰 Answer questions:\n'
         '• "How much did I sell today?"\n'
         '• "What\'s my profit?"\n\n'
+        '📊 Generate reports:\n'
+        '• "Show me my daily report"\n\n'
         '📦 Manage inventory:\n'
         '• "Add product Sugar, price 5000"\n\n'
         'Start recording your first transaction! 📈';
@@ -425,5 +532,32 @@ class SmartReplyService {
       'unitPrice': price,
       'total': price * quantity,
     };
+  }
+
+  /// Extract business data from context for reports
+  static Map<String, dynamic> extractBusinessMetrics(String contextData) {
+    final metrics = <String, dynamic>{};
+
+    // Parse common patterns in the context data
+    final patterns = {
+      "Today's Sales": RegExp(r"Today's Sales:\s*UGX\s*([\d,]+)"),
+      "Today's Expenses": RegExp(r"Today's Expenses:\s*UGX\s*([\d,]+)"),
+      "Today's Profit": RegExp(r"Today's Profit:\s*UGX\s*([\d,]+)"),
+      "This Week's Sales": RegExp(r"This Week's Sales:\s*UGX\s*([\d,]+)"),
+      "This Month's Sales": RegExp(r"This Month's Sales:\s*UGX\s*([\d,]+)"),
+      "Total Transactions": RegExp(r"Total Transactions:\s*(\d+)"),
+    };
+
+    for (final entry in patterns.entries) {
+      final match = entry.value.firstMatch(contextData);
+      if (match != null) {
+        final value = match.group(1)?.replaceAll(',', '');
+        if (value != null) {
+          metrics[entry.key] = double.tryParse(value) ?? 0;
+        }
+      }
+    }
+
+    return metrics;
   }
 }
