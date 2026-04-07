@@ -33,10 +33,6 @@ class AuthProvider with ChangeNotifier {
     _ensureFirebaseInitialized();
   }
 
-  void _listenToAuthState() {
-    // Auth state listener is now set up in _ensureFirebaseInitialized
-  }
-
   bool _authListenerSetup = false;
   bool _isLoadingUserData = false;
 

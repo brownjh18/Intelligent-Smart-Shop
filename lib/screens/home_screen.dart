@@ -66,10 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = context.watch<AuthProvider>();
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    return WillPopScope(
-      onWillPop: () async {
-        return false;
-      },
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: AppSidebar(

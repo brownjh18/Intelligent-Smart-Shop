@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -13,13 +14,13 @@ class FirestoreSetup {
     try {
       // Check if user is authenticated
       if (_auth.currentUser == null) {
-        print('Please sign in first before initializing collections');
+        debugPrint('Please sign in first before initializing collections');
         return;
       }
 
       final userId = _auth.currentUser!.uid;
 
-      print('Initializing Firestore collections for user: $userId');
+      debugPrint('Initializing Firestore collections for user: $userId');
 
       // Create a sample transaction to establish the collection
       final sampleTransaction = {
@@ -38,7 +39,7 @@ class FirestoreSetup {
       // Add sample transaction to create 'transactions' collection
       await _firestore.collection('transactions').add(sampleTransaction);
 
-      print('✓ Transactions collection created');
+      debugPrint('✓ Transactions collection created');
 
       // Create sample user data to establish 'users' collection
       await _firestore.collection('users').doc(userId).set({
@@ -50,7 +51,7 @@ class FirestoreSetup {
         'initialized': true,
       }, SetOptions(merge: true));
 
-      print('✓ Users collection created');
+      debugPrint('✓ Users collection created');
 
       // Delete the sample transaction we just created
       final snapshot = await _firestore
@@ -63,15 +64,13 @@ class FirestoreSetup {
         await doc.reference.delete();
       }
 
-      print('✓ Sample data cleaned up');
-      print('');
-      print('Firestore collections initialized successfully!');
-      print('');
-      print('Collections available:');
-      print('  - transactions (your sales/expenses)');
-      print('  - users (user profiles)');
+      debugPrint('✓ Sample data cleaned up');
+      debugPrint('Firestore collections initialized successfully!');
+      debugPrint('Collections available:');
+      debugPrint('  - transactions (your sales/expenses)');
+      debugPrint('  - users (user profiles)');
     } catch (e) {
-      print('Error initializing collections: $e');
+      debugPrint('Error initializing collections: $e');
     }
   }
 
@@ -82,7 +81,7 @@ class FirestoreSetup {
       await _firestore.collection('_health_check').doc('test').get();
       return true;
     } catch (e) {
-      print('Firestore connection check failed: $e');
+      debugPrint('Firestore connection check failed: $e');
       return false;
     }
   }
@@ -90,7 +89,7 @@ class FirestoreSetup {
   /// Get all transactions (for debugging)
   static Future<void> listAllTransactions() async {
     if (_auth.currentUser == null) {
-      print('Please sign in first');
+      debugPrint('Please sign in first');
       return;
     }
 
@@ -99,9 +98,9 @@ class FirestoreSetup {
         .where('userId', isEqualTo: _auth.currentUser!.uid)
         .get();
 
-    print('Total transactions: ${snapshot.docs.length}');
+    debugPrint('Total transactions: ${snapshot.docs.length}');
     for (final doc in snapshot.docs) {
-      print('  - ${doc.id}: ${doc.data()}');
+      debugPrint('  - ${doc.id}: ${doc.data()}');
     }
   }
 }

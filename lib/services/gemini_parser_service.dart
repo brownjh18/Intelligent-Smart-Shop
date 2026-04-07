@@ -13,7 +13,6 @@ class GeminiParserService {
   static const String _apiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
   static const String _apiKeyPref = 'gemini_api_key';
-  static const String _defaultModel = 'gemini-pro';
 
   // Fallback to local NLP if API fails
   static bool _useLocalNLP = true;
@@ -33,7 +32,7 @@ class GeminiParserService {
       }
 
       debugPrint(
-          'GeminiParserService: API key configured: ${isApiKeyConfigured}');
+          'GeminiParserService: API key configured: $isApiKeyConfigured');
     } catch (e) {
       debugPrint('GeminiParserService: Error loading API key - $e');
     }
@@ -688,7 +687,7 @@ Remember: Your response should make the owner feel supported and informed. Be sp
         return '👋 Hey there! I\'m iSmart AI, your business assistant! 📊\n\n'
             'I can help you track sales, expenses, and answer questions about your shop.\n\n'
             'Currently you have ${totalTransactions.toInt()} transactions recorded. '
-            '${todaySales > 0 ? "Today\'s sales are looking good at UGX ${_formatNumber(todaySales)}!" : "Start recording to see your numbers!"}\n\n'
+            '${todaySales > 0 ? "Today's sales are looking good at UGX ${_formatNumber(todaySales)}!" : "Start recording to see your numbers!"}\n\n'
             'Just ask me anything like "How much did I sell today?" or "What\'s my profit this week?" 🚀';
       }
 
@@ -707,7 +706,7 @@ Remember: Your response should make the owner feel supported and informed. Be sp
               'This week: UGX ${_formatNumber(weekProfit)}\n'
               'This month: UGX ${_formatNumber(monthProfit)}\n\n'
               'Your profit margin is looking healthy! Keep up the good work. 💪\n\n'
-              '${totalTransactions > 0 ? "You\'ve completed ${totalTransactions.toInt()} transactions this month." : "Start recording to track your profit!"}';
+              '${totalTransactions > 0 ? "You've completed ${totalTransactions.toInt()} transactions this month." : "Start recording to track your profit!"}';
         } else if (profit == 0 && todaySales > 0) {
           return '📊 Profit Update\n\n'
               'Today\'s profit: UGX ${_formatNumber(todayProfit)}\n'
@@ -734,7 +733,7 @@ Remember: Your response should make the owner feel supported and informed. Be sp
               '📅 Today: UGX ${_formatNumber(todaySales)}\n'
               '📆 This week: UGX ${_formatNumber(weekSales)}\n'
               '📆 This month: UGX ${_formatNumber(monthSales)}\n\n'
-              '${todaySales >= weekSales / 7 ? "You\'re doing great today - above your daily average! 🌟" : "Keep pushing! Every sale counts. 💪"}\n\n'
+              '${todaySales >= weekSales / 7 ? "You're doing great today - above your daily average! 🌟" : "Keep pushing! Every sale counts. 💪"}\n\n'
               'Want to see more details? Just ask! 😊';
         } else {
           return '🛒 No Sales Recorded Yet 📝\n\n'

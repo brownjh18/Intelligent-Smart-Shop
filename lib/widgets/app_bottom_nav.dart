@@ -2,26 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
 
-/// Modern Floating Bottom Navigation Widget
-/// Features a floating pill design with smooth indicator animations
+/// Modern Minimal Bottom Navigation
+/// Clean design with centered active indicator and smooth animations
 class AppBottomNav extends StatefulWidget {
   final int currentIndex;
   final Function(int) onNavigate;
-  final bool showLabels;
 
   const AppBottomNav({
     super.key,
     required this.currentIndex,
     required this.onNavigate,
-    this.showLabels = true,
   });
 
   @override
   State<AppBottomNav> createState() => _AppBottomNavState();
 }
 
-class _AppBottomNavState extends State<AppBottomNav> {
-  final List<_NavItemData> _navItems = [
+class _AppBottomNavState extends State<AppBottomNav>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+
+  final List<_NavItemData> _navItems = const [
     _NavItemData(
       icon: CupertinoIcons.house,
       selectedIcon: CupertinoIcons.house_fill,
@@ -50,55 +51,57 @@ class _AppBottomNavState extends State<AppBottomNav> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  @override
+  void didUpdateWidget(AppBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _animationController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDarkMode ? IOSDarkColors.primary : IOSColors.primary;
-    final labelTertiaryColor =
-        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
-    final backgroundColor =
+    final surfaceColor =
         isDarkMode ? IOSDarkColors.systemBackground : Colors.white;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(28),
+        color: surfaceColor,
         boxShadow: [
           BoxShadow(
-            color: (isDarkMode ? Colors.black : Colors.grey)
-                .withValues(alpha: isDarkMode ? 0.5 : 0.2),
-            blurRadius: 40,
-            offset: const Offset(0, 15),
-          ),
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.08),
-            blurRadius: 30,
-            offset: const Offset(0, -8),
+            color: Colors.black.withOpacity(isDarkMode ? 0.3 : 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          height: 65,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: (isDarkMode ? Colors.white : Colors.black)
-                  .withValues(alpha: 0.06),
-              width: 1.2,
-            ),
-          ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(_navItems.length, (index) {
               return _buildNavItem(
-                context: context,
                 index: index,
                 item: _navItems[index],
                 isDarkMode: isDarkMode,
                 primaryColor: primaryColor,
-                labelTertiaryColor: labelTertiaryColor,
               );
             }),
           ),
@@ -108,51 +111,61 @@ class _AppBottomNavState extends State<AppBottomNav> {
   }
 
   Widget _buildNavItem({
-    required BuildContext context,
     required int index,
     required _NavItemData item,
     required bool isDarkMode,
     required Color primaryColor,
-    required Color labelTertiaryColor,
   }) {
     final isSelected = widget.currentIndex == index;
+    final inactiveColor =
+        isDarkMode ? IOSDarkColors.labelTertiary : IOSColors.labelTertiary;
 
-    return GestureDetector(
-      onTap: () => widget.onNavigate(index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? primaryColor.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutBack,
-              child: Icon(
-                isSelected ? item.selectedIcon : item.icon,
-                size: isSelected ? 24 : 22,
-                color: isSelected ? primaryColor : labelTertiaryColor,
+    return Expanded(
+      child: InkWell(
+        onTap: () => widget.onNavigate(index),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? primaryColor.withOpacity(isDarkMode ? 0.2 : 0.1)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isSelected ? item.selectedIcon : item.icon,
+                  size: 24,
+                  color: isSelected ? primaryColor : inactiveColor,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: TextStyle(
-                fontSize: isSelected ? 9.5 : 0,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? primaryColor : Colors.transparent,
-                letterSpacing: 0.3,
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isSelected ? 20 : 0,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: isSelected ? primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              child: Text(item.label),
-            ),
-          ],
+              if (isSelected)
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
+                  ),
+                  child: Text(item.label),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -164,7 +177,7 @@ class _NavItemData {
   final IconData selectedIcon;
   final String label;
 
-  _NavItemData({
+  const _NavItemData({
     required this.icon,
     required this.selectedIcon,
     required this.label,

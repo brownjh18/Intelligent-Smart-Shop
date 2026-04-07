@@ -19,7 +19,6 @@ import 'package:ismart_shop/services/speech_service.dart';
 import 'package:ismart_shop/services/nlp_service.dart';
 import 'package:ismart_shop/services/whisper_service.dart';
 import 'package:ismart_shop/services/gemini_parser_service.dart';
-import 'package:ismart_shop/services/openai_parser_service.dart';
 import 'package:ismart_shop/services/translation_service.dart';
 import 'package:ismart_shop/services/local_database_service.dart';
 import 'package:ismart_shop/utils/ios_theme.dart';
@@ -27,23 +26,14 @@ import 'package:ismart_shop/widgets/ios_app_bar.dart';
 import 'package:ismart_shop/widgets/app_bottom_nav.dart';
 import 'package:ismart_shop/widgets/voice_button.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
-import 'home_screen.dart';
 import 'categories_screen.dart';
 import 'customers_screen.dart';
-import 'expenses_screen.dart';
 import 'home_screen.dart';
 import 'inventory_screen.dart';
-import 'onboarding_screen.dart';
-import 'profile_edit_screen.dart';
-import 'profile_screen.dart';
 import 'receipts_screen.dart';
-import 'register_screen.dart';
 import 'reports_screen.dart';
 import 'suppliers_screen.dart';
-import 'text_entry_screen.dart';
-import 'transaction_edit_screen.dart';
 import 'transactions_list_screen.dart';
-import 'voice_recording_screen.dart';
 
 // Chat message model
 class ChatMessage {
@@ -1390,7 +1380,7 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
 
       // Add the main item
       itemsText +=
-          '1. ${intent.itemName} - ${_transactionQuantity} ${_getUnitDisplay()} @ UGX ${_transactionUnitPrice.toStringAsFixed(0)} each\n';
+          '1. ${intent.itemName} - $_transactionQuantity ${_getUnitDisplay()} @ UGX ${_transactionUnitPrice.toStringAsFixed(0)} each\n';
 
       // Add additional items
       if (intent.additionalItems != null) {
@@ -1411,7 +1401,7 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     }
 
     _addChatMessage(
-      'I\'ve parsed your $typeLabel transaction (${itemCount} item${itemCount > 1 ? 's' : ''}):\n\n'
+      'I\'ve parsed your $typeLabel transaction ($itemCount item${itemCount > 1 ? 's' : ''}):\n\n'
       '$itemsText\n'
       '• Total: UGX ${_totalAmount.toStringAsFixed(0)}\n'
       '• Category: ${_transactionCategory.isEmpty ? 'Not specified' : _transactionCategory}\n'
@@ -1662,7 +1652,7 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
         if (_currentTransactionIntent!.hasMultipleItems) {
           itemsText = '\n📋 Items in this transaction ($itemCount):\n';
           itemsText +=
-              '1. ${_currentTransactionIntent!.itemName} - ${_transactionQuantity} ${_getUnitDisplay()} @ UGX ${_transactionUnitPrice.toStringAsFixed(0)} each\n';
+              '1. ${_currentTransactionIntent!.itemName} - $_transactionQuantity ${_getUnitDisplay()} @ UGX ${_transactionUnitPrice.toStringAsFixed(0)} each\n';
           if (_currentTransactionIntent!.additionalItems != null) {
             for (var j = 0;
                 j < _currentTransactionIntent!.additionalItems!.length;
@@ -2830,7 +2820,7 @@ Transactions Today: ${transactions.where((t) => t.createdAt.isAfter(todayStart))
     if (todaySales > 0 && weekSales > 0) {
       final dailyAvg = weekSales / 7;
       final todayVsAvg = (todaySales / dailyAvg * 100).toStringAsFixed(0);
-      context += "Today's performance vs weekly average: ${todayVsAvg}%\n";
+      context += "Today's performance vs weekly average: $todayVsAvg%\n";
     }
     if (monthSales > 0 && weekSales > 0) {
       final weeklyAvg = weekSales;
@@ -3346,12 +3336,12 @@ Transactions Today: ${transactions.where((t) => t.createdAt.isAfter(todayStart))
                   padding: const EdgeInsets.symmetric(vertical: IOSSpacing.sm),
                   borderRadius: BorderRadius.circular(IOSBorderRadius.medium),
                   onPressed: _saveTransaction,
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(CupertinoIcons.checkmark_circle_fill,
                           size: 18, color: Colors.white),
-                      const SizedBox(width: IOSSpacing.xs),
+                      SizedBox(width: IOSSpacing.xs),
                       Text(
                         'Save',
                         style: TextStyle(
@@ -3624,23 +3614,23 @@ Transactions Today: ${transactions.where((t) => t.createdAt.isAfter(todayStart))
           ),
           CupertinoButton(
             padding: const EdgeInsets.symmetric(horizontal: IOSSpacing.sm),
-            minSize: 32,
             onPressed: onSave,
             child: Icon(
               CupertinoIcons.checkmark_circle_fill,
               size: 20,
               color: primaryColor,
             ),
+            minimumSize: Size(32, 32),
           ),
           CupertinoButton(
             padding: const EdgeInsets.symmetric(horizontal: IOSSpacing.sm),
-            minSize: 32,
             onPressed: onCancel,
             child: Icon(
               CupertinoIcons.xmark_circle_fill,
               size: 20,
               color: isDarkMode ? IOSDarkColors.error : IOSColors.error,
             ),
+            minimumSize: Size(32, 32),
           ),
         ],
       ),
@@ -3799,43 +3789,43 @@ Transactions Today: ${transactions.where((t) => t.createdAt.isAfter(todayStart))
         // Navigate to transaction details or list
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => TransactionsListScreen()),
+          CupertinoPageRoute(builder: (_) => const TransactionsListScreen()),
         );
         break;
       case ChatMessageType.inventory:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => InventoryScreen()),
+          CupertinoPageRoute(builder: (_) => const InventoryScreen()),
         );
         break;
       case ChatMessageType.supplier:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => SuppliersScreen()),
+          CupertinoPageRoute(builder: (_) => const SuppliersScreen()),
         );
         break;
       case ChatMessageType.customer:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => CustomersScreen()),
+          CupertinoPageRoute(builder: (_) => const CustomersScreen()),
         );
         break;
       case ChatMessageType.category:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => CategoriesScreen()),
+          CupertinoPageRoute(builder: (_) => const CategoriesScreen()),
         );
         break;
       case ChatMessageType.receipt:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => ReceiptsScreen()),
+          CupertinoPageRoute(builder: (_) => const ReceiptsScreen()),
         );
         break;
       case ChatMessageType.profit:
         Navigator.push(
           context,
-          CupertinoPageRoute(builder: (_) => ReportsScreen()),
+          CupertinoPageRoute(builder: (_) => const ReportsScreen()),
         );
         break;
       default:

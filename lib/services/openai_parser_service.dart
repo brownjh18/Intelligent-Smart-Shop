@@ -507,8 +507,6 @@ $contextData''',
       }
       return '⚠️ An error occurred. Please try again.';
     }
-
-    return null;
   }
 
   /// Parse product text using OpenAI GPT
