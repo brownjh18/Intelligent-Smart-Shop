@@ -610,4 +610,150 @@ class SmartReplyService {
 
     return metrics;
   }
+
+  /// Extract number of days from query (e.g., "last 3 days", "past 5 days", "last three days")
+  static int? extractDaysFromQuery(String query) {
+    final lowerQuery = query.toLowerCase();
+
+    // Check if query is about a specific number of days
+    if (!lowerQuery.contains('day') &&
+        !lowerQuery.contains('days') &&
+        !lowerQuery.contains('past') &&
+        !lowerQuery.contains('last')) {
+      return null;
+    }
+
+    // Pattern: "last X days" or "past X days" or "X days"
+    final numericPattern = RegExp(
+        r'(?:last|past|previous|preceding)\s+(\d+)\s*days?',
+        caseSensitive: false);
+    var match = numericPattern.firstMatch(lowerQuery);
+    if (match != null) {
+      final days = int.tryParse(match.group(1) ?? '');
+      if (days != null && days > 0 && days <= 365) {
+        return days;
+      }
+    }
+
+    // Pattern: "last three days" or "past five days" (word numbers)
+    final wordPattern = RegExp(
+        r'(?:last|past|previous|preceding)\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|twenty-five|thirty)\s*days?',
+        caseSensitive: false);
+    match = wordPattern.firstMatch(lowerQuery);
+    if (match != null) {
+      final wordNum = match.group(1)?.toLowerCase();
+      if (wordNum != null) {
+        final numValue = _convertWordToNumber(wordNum);
+        if (numValue != null && numValue > 0 && numValue <= 365) {
+          return numValue;
+        }
+      }
+    }
+
+    // Pattern: "X days ago" or "last X days"
+    final agoPattern = RegExp(r'(\d+)\s*days?\s*ago', caseSensitive: false);
+    match = agoPattern.firstMatch(lowerQuery);
+    if (match != null) {
+      final days = int.tryParse(match.group(1) ?? '');
+      if (days != null && days > 0 && days <= 365) {
+        return days;
+      }
+    }
+
+    // Check for "yesterday" (1 day)
+    if (lowerQuery.contains('yesterday')) {
+      return 1;
+    }
+
+    return null;
+  }
+
+  /// Convert word number to integer
+  static int? _convertWordToNumber(String word) {
+    final wordNumbers = {
+      'one': 1,
+      'two': 2,
+      'three': 3,
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10,
+      'eleven': 11,
+      'twelve': 12,
+      'thirteen': 13,
+      'fourteen': 14,
+      'fifteen': 15,
+      'sixteen': 16,
+      'seventeen': 17,
+      'eighteen': 18,
+      'nineteen': 19,
+      'twenty': 20,
+      'twenty-five': 25,
+      'twentyfive': 25,
+      'thirty': 30,
+    };
+
+    return wordNumbers[word.toLowerCase()];
+  }
+
+  /// Generate a report for a specific number of days
+  static String generateDaysReport(
+      Map<String, dynamic> businessData, int days) {
+    final todaySales = _extractDouble(businessData, "Today's Sales") ?? 0;
+    final todayExpenses = _extractDouble(businessData, "Today's Expenses") ?? 0;
+    final todayProfit = _extractDouble(businessData, "Today's Profit") ?? 0;
+    final weekSales = _extractDouble(businessData, "This Week's Sales") ?? 0;
+    final totalTransactions =
+        _extractDouble(businessData, "Total Transactions") ?? 0;
+
+    final dayWord = days == 1 ? 'day' : 'days';
+
+    String response = '📊 **REPORT: LAST $days $dayWord** 📊\n\n';
+    response += '━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+    if (days == 1) {
+      response += '📅 TODAY\'S PERFORMANCE:\n';
+      response += '• Sales: UGX ${_formatNumber(todaySales)}\n';
+      response += '• Expenses: UGX ${_formatNumber(todayExpenses)}\n';
+      response += '• Profit: UGX ${_formatNumber(todayProfit)}\n';
+    } else if (days <= 7) {
+      response += '📆 PERIOD SUMMARY (Last $days $dayWord):\n';
+      response += '• Weekly Sales: UGX ${_formatNumber(weekSales)}\n';
+      response += '• Daily Average: UGX ${_formatNumber(weekSales / days)}\n';
+      response += '• Today\'s Sales: UGX ${_formatNumber(todaySales)}\n';
+    } else {
+      response += '📆 PERIOD SUMMARY (Last $days $dayWord):\n';
+      response += '• Total Transactions: ${totalTransactions.toInt()}\n';
+      response += '• Today\'s Sales: UGX ${_formatNumber(todaySales)}\n';
+    }
+
+    response += '\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    response += '💡 **INSIGHTS:**\n';
+
+    if (todaySales == 0) {
+      response +=
+          '• No sales recorded today - start recording to track your business!\n';
+    } else if (days > 1) {
+      final dailyAvg = weekSales / (days > 7 ? 7 : days);
+      if (todaySales >= dailyAvg) {
+        response +=
+            '• Great! Today\'s sales (UGX ${_formatNumber(todaySales)}) are above your ${days > 7 ? 'weekly' : 'period'} daily average of UGX ${_formatNumber(dailyAvg)}\n';
+      } else {
+        response +=
+            '• Today\'s sales (UGX ${_formatNumber(todaySales)}) are below your ${days > 7 ? 'weekly' : 'period'} daily average of UGX ${_formatNumber(dailyAvg)}\n';
+      }
+    }
+
+    if (todayProfit > 0) {
+      response += '• You\'re making a profit! Keep up the good work! 🎉\n';
+    }
+
+    response +=
+        '\n💡 Tip: Say "Show me the last 7 days report" for a weekly summary!';
+
+    return response;
+  }
 }
