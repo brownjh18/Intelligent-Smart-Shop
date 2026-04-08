@@ -1194,11 +1194,12 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     var parsed = await GeminiParserService.parseProduct(text);
 
     if (parsed != null) {
-      final name = parsed['name'] ?? 'Unknown';
-      final category = parsed['category'] ?? 'Other';
+      final name = parsed['name']?.toString() ?? 'Unknown';
+      final category = parsed['category']?.toString() ?? 'Other';
       final price = (parsed['price'] as num?)?.toDouble() ?? 0;
       final quantity = (parsed['quantity'] as num?)?.toInt() ?? 0;
-      final unitStr = parsed['unit'] ?? 'pcs';
+      final unitStr = parsed['unit']?.toString() ?? 'pcs';
+      final description = parsed['description']?.toString() ?? '';
 
       // Map unit string to display name
       String unitDisplay = 'pcs';
@@ -1225,22 +1226,79 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
         unitDisplay = 'pieces';
       }
 
-      // Show parsed data and direct to inventory screen
-      _addChatMessage(
-        '✅ Product details parsed!\n\n'
-        '• Name: $name\n'
-        '• Category: $category\n'
-        '• Selling Price: UGX ${price.toStringAsFixed(0)}\n'
-        '• Stock Quantity: $quantity $unitDisplay\n\n'
-        'I\'ve extracted your product details. To complete the addition, please:\n\n'
-        '1. Go to the Inventory screen\n'
-        '2. Tap "Add Product"\n'
-        '3. Enter the details shown above\n\n'
-        'Or say "Go to inventory" and I\'ll navigate you there!',
-        isUser: false,
-        type: ChatMessageType.inventory,
-      );
-      return 'Product "$name" parsed successfully!';
+      // Map unit string to QuantityUnit enum (reuse unitLower from above)
+      QuantityUnit quantityUnit = QuantityUnit.pcs;
+      if (unitLower.startsWith('kg') ||
+          unitLower == 'kilo' ||
+          unitLower == 'kilos') {
+        quantityUnit = QuantityUnit.kgs;
+      } else if (unitLower.startsWith('gram') || unitLower == 'g') {
+        quantityUnit = QuantityUnit.grams;
+      } else if (unitLower == 'l' || unitLower.startsWith('liter')) {
+        quantityUnit = QuantityUnit.liters;
+      } else if (unitLower == 'ml') {
+        quantityUnit = QuantityUnit.ml;
+      } else if (unitLower.startsWith('dozen')) {
+        quantityUnit = QuantityUnit.dozens;
+      } else if (unitLower.startsWith('box')) {
+        quantityUnit = QuantityUnit.boxes;
+      } else if (unitLower.startsWith('bag')) {
+        quantityUnit = QuantityUnit.bags;
+      } else if (unitLower.startsWith('sack')) {
+        quantityUnit = QuantityUnit.sacks;
+      } else if (unitLower.startsWith('piece') || unitLower.startsWith('pcs')) {
+        quantityUnit = QuantityUnit.pieces;
+      }
+
+      // Actually save the product to the database
+      try {
+        final authProvider = context.read<AuthProvider>();
+        final userId = authProvider.userModel?.id ?? '';
+
+        // Create LocalProduct for database storage
+        final localProduct = LocalProduct(
+          id: '',
+          name: name,
+          categoryId: '',
+          categoryName: category,
+          unit: quantityUnit,
+          sellingPrice: price,
+          costPrice: price * 0.8, // Default 20% margin
+          stockQuantity: quantity,
+          lowStockThreshold: 10,
+          description:
+              description.isNotEmpty ? description : 'Added via AI Assistant',
+          userId: userId,
+          createdAt: DateTime.now(),
+        );
+
+        // Save to local database
+        await LocalDatabaseService.insertProduct(localProduct);
+
+        _addChatMessage(
+          '✅ Product added successfully and saved to database!\n\n'
+          '• Name: $name\n'
+          '• Category: $category\n'
+          '• Selling Price: UGX ${price.toStringAsFixed(0)}\n'
+          '• Cost Price: UGX ${(price * 0.8).toStringAsFixed(0)}\n'
+          '• Stock Quantity: $quantity $unitDisplay\n'
+          '${description.isNotEmpty ? '• Description: $description\n' : ''}'
+          '\nThe product is now available in your inventory!',
+          isUser: false,
+          type: ChatMessageType.inventory,
+        );
+        return 'Product "$name" added successfully!';
+      } catch (e) {
+        debugPrint('Error saving product: $e');
+        // Fall back to showing parsed data
+      }
+
+      return '📦 Product parsed but could not save.\n\n'
+          '• Name: $name\n'
+          '• Category: $category\n'
+          '• Price: UGX ${price.toStringAsFixed(0)}\n'
+          '• Quantity: $quantity $unitDisplay\n\n'
+          'Please try again or add manually in Inventory screen.';
     }
 
     return '📦 Product Addition\n\n'
@@ -1258,10 +1316,44 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     var parsed = await GeminiParserService.parseSupplier(text);
 
     if (parsed != null) {
-      final name = parsed['name'] ?? 'Unknown';
-      final phone = parsed['phone'] ?? '';
-      final email = parsed['email'] ?? '';
-      final address = parsed['address'] ?? '';
+      final name = parsed['name']?.toString() ?? 'Unknown';
+      final phone = parsed['phone']?.toString() ?? '';
+      final email = parsed['email']?.toString() ?? '';
+      final address = parsed['address']?.toString() ?? '';
+
+      // Actually save the supplier to the database
+      try {
+        final authProvider = context.read<AuthProvider>();
+        final userId = authProvider.userModel?.id ?? '';
+
+        // Create LocalSupplier for database storage
+        final localSupplier = LocalSupplier(
+          id: '',
+          name: name,
+          phone: phone.isNotEmpty ? phone : null,
+          email: email.isNotEmpty ? email : null,
+          address: address.isNotEmpty ? address : null,
+          userId: userId,
+          createdAt: DateTime.now(),
+        );
+
+        // Save to local database
+        await LocalDatabaseService.insertSupplier(localSupplier);
+
+        _addChatMessage(
+          '✅ Supplier added successfully and saved to database!\n\n'
+          '• Name: $name\n'
+          '${phone.isNotEmpty ? '• Phone: $phone\n' : ''}'
+          '${email.isNotEmpty ? '• Email: $email\n' : ''}'
+          '${address.isNotEmpty ? '• Address: $address\n' : ''}'
+          '\nThe supplier is now available for recording purchases!',
+          isUser: false,
+          type: ChatMessageType.supplier,
+        );
+        return 'Supplier "$name" added successfully!';
+      } catch (e) {
+        debugPrint('Error saving supplier: $e');
+      }
 
       return '👥 Supplier Addition Request\n\n'
           'I\'ve parsed your supplier details:\n\n'
@@ -1287,10 +1379,44 @@ class _VoiceRecordingScreenState extends State<VoiceRecordingScreen>
     var parsed = await GeminiParserService.parseCustomer(text);
 
     if (parsed != null) {
-      final name = parsed['name'] ?? 'Unknown';
-      final phone = parsed['phone'] ?? '';
-      final email = parsed['email'] ?? '';
-      final address = parsed['address'] ?? '';
+      final name = parsed['name']?.toString() ?? 'Unknown';
+      final phone = parsed['phone']?.toString() ?? '';
+      final email = parsed['email']?.toString() ?? '';
+      final address = parsed['address']?.toString() ?? '';
+
+      // Actually save the customer to the database
+      try {
+        final authProvider = context.read<AuthProvider>();
+        final userId = authProvider.userModel?.id ?? '';
+
+        // Create LocalCustomer for database storage
+        final localCustomer = LocalCustomer(
+          id: '',
+          name: name,
+          phone: phone.isNotEmpty ? phone : null,
+          email: email.isNotEmpty ? email : null,
+          address: address.isNotEmpty ? address : null,
+          userId: userId,
+          createdAt: DateTime.now(),
+        );
+
+        // Save to local database
+        await LocalDatabaseService.insertCustomer(localCustomer);
+
+        _addChatMessage(
+          '✅ Customer added successfully and saved to database!\n\n'
+          '• Name: $name\n'
+          '${phone.isNotEmpty ? '• Phone: $phone\n' : ''}'
+          '${email.isNotEmpty ? '• Email: $email\n' : ''}'
+          '${address.isNotEmpty ? '• Address: $address\n' : ''}'
+          '\nThe customer is now available for recording sales!',
+          isUser: false,
+          type: ChatMessageType.customer,
+        );
+        return 'Customer "$name" added successfully!';
+      } catch (e) {
+        debugPrint('Error saving customer: $e');
+      }
 
       return '👤 Customer Addition Request\n\n'
           'I\'ve parsed your customer details:\n\n'
